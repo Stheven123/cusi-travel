@@ -1,0 +1,32 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cusi_travel_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cusi_travel
+      POSTGRES_USER: cusi_admin
+      POSTGRES_PASSWORD: CusiTravel2025!   # cambiar en producción → variable de entorno
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - cusi_pgdata:/var/lib/postgresql/data
+      - ./01_ddl_schema.sql:/docker-entrypoint-initdb.d/01_ddl_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cusi_admin -d cusi_travel"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cusi_net
+
+volumes:
+  cusi_pgdata:
+    driver: local
+
+networks:
+  cusi_net:
+    driver: bridge

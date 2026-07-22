@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: cusi-travel-backend
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: DATABASE_URL
+        sync: false          # lo ingresas manualmente en el dashboard de Render
+      - key: JWT_SECRET
+        generateValue: true  # Render genera uno automáticamente
+      - key: JWT_EXPIRES
+        value: 24h
+      - key: CORS_ORIGIN
+        sync: false          # URL de tu frontend en Netlify, ej: https://cusi-travel.netlify.app
