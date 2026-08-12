@@ -1,6 +1,69 @@
 const { query, withTransaction } = require('../config/database');
 const { AppError }               = require('../middleware/error.middleware');
 
+// Checklist estándar cuando una operación de tipo GUIA no trae tareas de plantilla propias
+const CHECKLIST_GUIA_DEFAULT = [
+  'Fecha de confirmación',
+  'Fecha de reconfirmación',
+  'Fecha de entrega de sobre y equipo necesario',
+  'Fecha que recibimos sus comprobantes',
+  'Fecha que recibimos su recibo por honorario',
+  'Fecha de pago',
+];
+
+// Copia las operaciones + checklist definidos en la plantilla del paquete
+// hacia la nueva reserva. Se ejecuta solo al CREAR (no en cada edición).
+const instanciarPlantillaOperaciones = async (client, servicioId, reservaId, fechaInicio) => {
+  const { rows: plantillas } = await client.query(
+    'SELECT * FROM cusi.plantilla_operaciones WHERE servicio_id = $1 ORDER BY orden, id',
+    [servicioId]
+  );
+  for (const pl of plantillas) {
+    const { rows: det } = await client.query(
+      `INSERT INTO cusi.detalles_operacion_proveedor
+         (reserva_id, proveedor_id, tipo_servicio, descripcion, fecha_inicio,
+          cantidad, costo_unitario_usd, moneda, estado)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'PENDIENTE')
+       RETURNING id`,
+      [
+        reservaId, pl.proveedor_id || null, pl.tipo_servicio, pl.descripcion || null,
+        fechaInicio || new Date().toISOString().slice(0, 10),
+        pl.cantidad, pl.costo_unitario_usd, pl.moneda,
+      ]
+    );
+    const detalleId = det[0].id;
+
+    const { rows: tareasPlantilla } = await client.query(
+      'SELECT titulo FROM cusi.plantilla_tareas_operacion WHERE plantilla_operacion_id = $1 ORDER BY orden, id',
+      [pl.id]
+    );
+    const titulos = tareasPlantilla.length
+      ? tareasPlantilla.map(t => t.titulo)
+      : (pl.tipo_servicio === 'GUIA' ? CHECKLIST_GUIA_DEFAULT : []);
+
+    for (let i = 0; i < titulos.length; i++) {
+      await client.query(
+        `INSERT INTO cusi.tareas_operacion (detalle_id, titulo, orden) VALUES ($1,$2,$3)`,
+        [detalleId, titulos[i], i + 1]
+      );
+    }
+  }
+};
+
+// Reemplaza los servicios adicionales de una reserva (borrar + reinsertar).
+const syncServiciosAdicionales = async (client, reservaId, extras) => {
+  if (!Array.isArray(extras)) return;
+  await client.query('DELETE FROM cusi.reserva_servicios_adicionales WHERE reserva_id = $1', [reservaId]);
+  for (const e of extras) {
+    if (!e.nombre || !e.nombre.trim()) continue;
+    await client.query(
+      `INSERT INTO cusi.reserva_servicios_adicionales (reserva_id, nombre, cantidad, precio_unitario_usd)
+       VALUES ($1,$2,$3,$4)`,
+      [reservaId, e.nombre, Number(e.cantidad) || 1, Number(e.precio_unitario_usd) || 0]
+    );
+  }
+};
+
 // Constructor de filtros dinámico con queries 100% parametrizadas
 const buildFilters = (q) => {
   const conds  = ['1=1'];
@@ -33,15 +96,17 @@ const getAll = async (q = {}) => {
             st.tipo             AS servicio_tipo,
             st.duracion_dias,
             uo.nombre || ' ' || uo.apellido AS operador_nombre,
+            ug.nombre || ' ' || ug.apellido AS guia_nombre,
             COUNT(p.id)::int    AS pasajeros_registrados,
             COUNT(t.id) FILTER (WHERE t.estado IN ('PENDIENTE','EN_PROGRESO'))::int AS tareas_activas
      FROM cusi.reservas r
      LEFT JOIN cusi.servicios_turisticos st ON st.id = r.servicio_id
      LEFT JOIN cusi.usuarios uo             ON uo.id = r.usuario_operador_id
+     LEFT JOIN cusi.usuarios ug             ON ug.id = r.usuario_guia_id
      LEFT JOIN cusi.pasajeros p             ON p.reserva_id = r.id
      LEFT JOIN cusi.tareas_pendientes t     ON t.reserva_id = r.id
      WHERE ${where}
-     GROUP BY r.id, st.nombre, st.tipo, st.duracion_dias, uo.nombre, uo.apellido
+     GROUP BY r.id, st.nombre, st.tipo, st.duracion_dias, uo.nombre, uo.apellido, ug.nombre, ug.apellido
      ORDER BY r.fecha_inicio DESC
      LIMIT $${idx} OFFSET $${idx + 1}`,
     [...values, limit, offset]
@@ -75,11 +140,13 @@ const getById = async (id) => {
     `SELECT r.*,
             st.nombre AS servicio_nombre, st.tipo AS servicio_tipo, st.duracion_dias,
             uo.nombre || ' ' || uo.apellido AS operador_nombre,
-            uc.nombre || ' ' || uc.apellido AS creador_nombre
+            uc.nombre || ' ' || uc.apellido AS creador_nombre,
+            ug.nombre || ' ' || ug.apellido AS guia_nombre
      FROM cusi.reservas r
      LEFT JOIN cusi.servicios_turisticos st ON st.id = r.servicio_id
      LEFT JOIN cusi.usuarios uo             ON uo.id = r.usuario_operador_id
      LEFT JOIN cusi.usuarios uc             ON uc.id = r.usuario_creador_id
+     LEFT JOIN cusi.usuarios ug             ON ug.id = r.usuario_guia_id
      WHERE r.id = $1`,
     [id]
   );
@@ -100,12 +167,16 @@ const getById = async (id) => {
   const { rows: detalles } = await query(
     `SELECT d.*, p.nombre AS proveedor_nombre, p.tipo AS proveedor_tipo
      FROM cusi.detalles_operacion_proveedor d
-     JOIN cusi.proveedores p ON p.id = d.proveedor_id
+     LEFT JOIN cusi.proveedores p ON p.id = d.proveedor_id
      WHERE d.reserva_id = $1 ORDER BY d.fecha_inicio`,
     [id]
   );
+  const { rows: serviciosAdicionales } = await query(
+    `SELECT * FROM cusi.reserva_servicios_adicionales WHERE reserva_id = $1 ORDER BY id`,
+    [id]
+  );
 
-  return { ...reserva, pasajeros, tareas, detalles };
+  return { ...reserva, pasajeros, tareas, detalles, servicios_adicionales: serviciosAdicionales };
 };
 
 const create = async (data, userId) => {
@@ -126,9 +197,9 @@ const create = async (data, userId) => {
           hora_encuentro, lugar_encuentro, n_pasajeros, idioma_servicio,
           estado_operacion, precio_usd_por_pax, total_usd, adelanto_usd, descuento_usd,
           agencia_nombre, agencia_codigo, operador_nombre,
-          usuario_creador_id, usuario_operador_id, observaciones, notas_internas,
+          usuario_creador_id, usuario_operador_id, usuario_guia_id, observaciones, notas_internas,
           codigo_reserva)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,'TEMP')
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,'TEMP')
        RETURNING id`,
       [
         data.servicio_id       || null,
@@ -149,6 +220,7 @@ const create = async (data, userId) => {
         data.operador_nombre   || null,
         userId,
         data.usuario_operador_id || null,
+        data.usuario_guia_id   || null,
         data.observaciones     || null,
         data.notas_internas    || null,
       ]
@@ -163,6 +235,11 @@ const create = async (data, userId) => {
       [codigo, newId]
     );
 
+    if (data.servicio_id) {
+      await instanciarPlantillaOperaciones(client, data.servicio_id, newId, data.fecha_inicio);
+    }
+    await syncServiciosAdicionales(client, newId, data.servicios_adicionales);
+
     await client.query(
       `INSERT INTO cusi.logs_auditoria (tabla, operacion, registro_id, usuario_id, datos_despues)
        VALUES ($1,$2,$3,$4,$5)`,
@@ -174,18 +251,34 @@ const create = async (data, userId) => {
 };
 
 const update = async (id, data, userId) => {
-  const campos  = Object.keys(data);
-  if (!campos.length) throw new AppError('Sin datos para actualizar', 400, 'EMPTY_UPDATE');
+  const { servicios_adicionales, ...camposReserva } = data;
+  const campos = Object.keys(camposReserva);
+  if (!campos.length && servicios_adicionales === undefined) {
+    throw new AppError('Sin datos para actualizar', 400, 'EMPTY_UPDATE');
+  }
 
   const norm   = v => (v === '' ? null : v);
-  const sets   = campos.map((k, i) => `${k} = $${i + 2}`);
-  const values = campos.map(k => norm(data[k]));
+  let row;
+  if (campos.length) {
+    const sets   = campos.map((k, i) => `${k} = $${i + 2}`);
+    const values = campos.map(k => norm(camposReserva[k]));
+    const { rows } = await query(
+      `UPDATE cusi.reservas SET ${sets.join(', ')} WHERE id = $1 RETURNING *`,
+      [id, ...values]
+    );
+    if (!rows.length) throw new AppError('Reserva no encontrada', 404, 'NOT_FOUND');
+    row = rows[0];
+  }
 
-  const { rows } = await query(
-    `UPDATE cusi.reservas SET ${sets.join(', ')} WHERE id = $1 RETURNING *`,
-    [id, ...values]
-  );
-  if (!rows.length) throw new AppError('Reserva no encontrada', 404, 'NOT_FOUND');
+  if (servicios_adicionales !== undefined) {
+    await withTransaction(client => syncServiciosAdicionales(client, id, servicios_adicionales));
+  }
+
+  if (!row) {
+    const { rows } = await query('SELECT * FROM cusi.reservas WHERE id = $1', [id]);
+    if (!rows.length) throw new AppError('Reserva no encontrada', 404, 'NOT_FOUND');
+    row = rows[0];
+  }
 
   await query(
     `INSERT INTO cusi.logs_auditoria (tabla, operacion, registro_id, usuario_id, datos_despues)
@@ -193,7 +286,7 @@ const update = async (id, data, userId) => {
     ['reservas', 'UPDATE', id, userId, JSON.stringify(data)]
   );
 
-  return rows[0];
+  return row;
 };
 
 const cambiarEstado = async (id, estado_operacion, userId) => {

@@ -43,7 +43,7 @@ const create = async (req, res, next) => {
 const update = async (req, res, next) => {
   try {
     const body = tareaSchema.partial().parse(req.body);
-    const data = await service.update(Number(req.params.id), body);
+    const data = await service.update(Number(req.params.id), body, req.user.id);
     res.json({ ok: true, data });
   } catch (err) { next(err); }
 };

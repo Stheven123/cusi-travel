@@ -10,4 +10,8 @@ export const proveedoresApi = {
   createDetalle:    (data)          => client.post('/proveedores/detalles', data),
   updateDetalle:    (id, data)      => client.put(`/proveedores/detalles/${id}`, data),
   deleteDetalle:    (id)            => client.delete(`/proveedores/detalles/${id}`),
+  getTareasOperacion:    (detalleId)       => client.get(`/proveedores/detalles/${detalleId}/tareas`),
+  createTareaOperacion:  (detalleId, data) => client.post(`/proveedores/detalles/${detalleId}/tareas`, data),
+  updateTareaOperacion:  (tareaId, data)   => client.put(`/proveedores/detalles/tareas/${tareaId}`, data),
+  deleteTareaOperacion:  (tareaId)         => client.delete(`/proveedores/detalles/tareas/${tareaId}`),
 };

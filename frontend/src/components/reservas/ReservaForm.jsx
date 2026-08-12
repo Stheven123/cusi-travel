@@ -7,8 +7,10 @@ import {
 import { ESTADOS_OPERACION, IDIOMAS } from '../../utils/constants';
 import { serviciosApi } from '../../api/servicios.api';
 import { agenciasApi } from '../../api/agencias.api';
+import { usuariosApi } from '../../api/usuarios.api';
 import Alert from '../ui/Alert';
 import Spinner from '../ui/Spinner';
+import ServiciosAdicionalesForm from './ServiciosAdicionalesForm';
 
 const OTRA_AGENCIA = '__otra__';
 
@@ -20,6 +22,7 @@ const EMPTY = {
   estado_operacion: 'COTIZACION',
   precio_usd_por_pax: 0, total_usd: 0, adelanto_usd: 0, descuento_usd: 0,
   agencia_nombre: '', agencia_codigo: '', operador_nombre: '',
+  usuario_guia_id: '',
   observaciones: '',
 };
 
@@ -58,11 +61,18 @@ export default function ReservaForm({ inicial, onSave, onCancel }) {
     ...inicial,
     fecha_inicio: inicial?.fecha_inicio?.slice(0, 10) || '',
     fecha_fin:    inicial?.fecha_fin?.slice(0, 10)    || '',
+    usuario_guia_id: inicial?.usuario_guia_id ?? '',
     observaciones: [inicial?.observaciones, inicial?.notas_internas]
       .filter(Boolean).join('\n\n') || '',
   });
   const [servicios, setServs] = useState([]);
   const [agencias, setAgencias] = useState([]);
+  const [guias, setGuias]     = useState([]);
+  const [extras, setExtras]   = useState(
+    (inicial?.servicios_adicionales || []).map(e => ({
+      nombre: e.nombre, cantidad: e.cantidad, precio_unitario_usd: e.precio_unitario_usd,
+    }))
+  );
   const [modoOtraAgencia, setModoOtraAgencia] = useState(false);
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState('');
@@ -77,6 +87,7 @@ export default function ReservaForm({ inicial, onSave, onCancel }) {
         setModoOtraAgencia(true);
       }
     }).catch(() => {});
+    usuariosApi.getAll().then(r => setGuias((r.data || []).filter(u => u.rol === 'GUIA'))).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -88,11 +99,14 @@ export default function ReservaForm({ inicial, onSave, onCancel }) {
     }
   }, []);
 
+  const extrasTotal = (list = extras) =>
+    list.reduce((s, e) => s + Number(e.cantidad || 1) * Number(e.precio_unitario_usd || 0), 0);
+
   const set = (k, v) => setForm(p => {
     const next = { ...p, [k]: v };
     if (k === 'precio_usd_por_pax' || k === 'n_pasajeros') {
       next.total_usd = (Number(k === 'precio_usd_por_pax' ? v : p.precio_usd_por_pax) *
-                        Number(k === 'n_pasajeros'        ? v : p.n_pasajeros)).toFixed(2);
+                        Number(k === 'n_pasajeros'        ? v : p.n_pasajeros) + extrasTotal()).toFixed(2);
     }
     if (k === 'servicio_id') {
       const s = servicios.find(x => String(x.id) === String(v));
@@ -100,7 +114,7 @@ export default function ReservaForm({ inicial, onSave, onCancel }) {
         next.nombre_servicio_snap = s.nombre;
         if (!p.precio_usd_por_pax || Number(p.precio_usd_por_pax) === 0)
           next.precio_usd_por_pax = s.precio_base_usd;
-        next.total_usd = (Number(s.precio_base_usd) * Number(p.n_pasajeros)).toFixed(2);
+        next.total_usd = (Number(s.precio_base_usd) * Number(p.n_pasajeros) + extrasTotal()).toFixed(2);
       }
     }
     /* Auto-completar código de agencia al seleccionar una conocida */
@@ -111,12 +125,23 @@ export default function ReservaForm({ inicial, onSave, onCancel }) {
     return next;
   });
 
+  const handleExtrasChange = (next) => {
+    setExtras(next);
+    setForm(p => ({
+      ...p,
+      total_usd: (Number(p.precio_usd_por_pax || 0) * Number(p.n_pasajeros || 1) + extrasTotal(next)).toFixed(2),
+    }));
+  };
+
+  const catalogoDelPaquete = servicios.find(s => String(s.id) === String(form.servicio_id))?.catalogo_adicionales || [];
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true); setError('');
     try {
       const payload = { ...form,
         servicio_id:        form.servicio_id        ? Number(form.servicio_id) : undefined,
+        usuario_guia_id:    form.usuario_guia_id     ? Number(form.usuario_guia_id) : null,
         n_pasajeros:        Number(form.n_pasajeros) || 1,
         precio_usd_por_pax: Number(form.precio_usd_por_pax),
         total_usd:          Number(form.total_usd),
@@ -127,6 +152,13 @@ export default function ReservaForm({ inicial, onSave, onCancel }) {
         // El campo "Notas" ya fusiona observaciones + notas_internas en uno solo;
         // se limpia notas_internas para no volver a fusionarlo (duplicado) en la próxima edición.
         notas_internas:     '',
+        servicios_adicionales: extras
+          .filter(e => e.nombre?.trim())
+          .map(e => ({
+            nombre: e.nombre,
+            cantidad: Number(e.cantidad) || 1,
+            precio_unitario_usd: Number(e.precio_unitario_usd) || 0,
+          })),
       };
       await onSave(payload);
     } catch (err) {
@@ -210,7 +242,7 @@ export default function ReservaForm({ inicial, onSave, onCancel }) {
 
       {/* ── Pasajeros y estado ── */}
       <Section icon={Users} title="Pasajeros y estado" color="#8b5cf6">
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Field label="N° pasajeros">
             <div className="relative">
               <Users size={14} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-3)' }} />
@@ -226,6 +258,13 @@ export default function ReservaForm({ inicial, onSave, onCancel }) {
                 {IDIOMAS.map(i => <option key={i}>{i}</option>)}
               </select>
             </div>
+          </Field>
+          <Field label="Guía asignado">
+            <select value={form.usuario_guia_id} onChange={e => set('usuario_guia_id', e.target.value)}
+              className="input-field">
+              <option value="">— Sin asignar —</option>
+              {guias.map(g => <option key={g.id} value={g.id}>{g.nombre} {g.apellido}</option>)}
+            </select>
           </Field>
           <Field label="Estado operación">
             <select value={form.estado_operacion} onChange={e => set('estado_operacion', e.target.value)}
@@ -256,6 +295,12 @@ export default function ReservaForm({ inicial, onSave, onCancel }) {
               onChange={e => set('descuento_usd', e.target.value)} className="input-field" />
           </Field>
         </div>
+
+        <div className="pt-1" style={{ borderTop: '1px dashed var(--border)' }}>
+          <p className="label mb-2">Servicios adicionales</p>
+          <ServiciosAdicionalesForm extras={extras} catalogo={catalogoDelPaquete} onChange={handleExtrasChange} />
+        </div>
+
         <div className="flex items-center justify-between rounded-xl px-4 py-3"
           style={{ background: saldo > 0 ? 'rgba(239,68,68,0.08)' : 'rgba(16,185,129,0.08)', border: `1px solid ${saldo > 0 ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)'}` }}>
           <div className="flex items-center gap-2">

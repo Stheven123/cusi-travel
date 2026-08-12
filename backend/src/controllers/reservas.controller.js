@@ -23,8 +23,14 @@ const reservaSchema = z.object({
   agencia_codigo:       z.string().max(50).optional().or(z.literal('')).nullable(),
   operador_nombre:      z.string().max(200).optional().or(z.literal('')).nullable(),
   usuario_operador_id:  z.number().int().positive().optional().nullable(),
+  usuario_guia_id:      z.number().int().positive().optional().nullable(),
   observaciones:        z.string().optional().or(z.literal('')).nullable(),
   notas_internas:       z.string().optional().or(z.literal('')).nullable(),
+  servicios_adicionales: z.array(z.object({
+    nombre:              z.string().min(1).max(200),
+    cantidad:            z.number().int().min(1).default(1),
+    precio_unitario_usd: z.number().min(0).default(0),
+  })).optional(),
 });
 
 const getAll = async (req, res, next) => {

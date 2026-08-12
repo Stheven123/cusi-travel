@@ -1,7 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { TIPOS_SERVICIO, NIVELES_DIFICULTAD } from '../../utils/constants';
+import { serviciosApi } from '../../api/servicios.api';
+import { proveedoresApi } from '../../api/proveedores.api';
 import Alert from '../ui/Alert';
 import Spinner from '../ui/Spinner';
+import PlantillaOperacionesForm from './PlantillaOperacionesForm';
+import CatalogoAdicionalesForm from './CatalogoAdicionalesForm';
 
 const EMPTY = {
   codigo: '', nombre: '', descripcion: '',
@@ -12,12 +16,29 @@ const EMPTY = {
   activo: true, es_plantilla: false,
 };
 
+const TABS = ['Datos generales', 'Operaciones de plantilla', 'Servicios adicionales'];
+
 export default function ServicioForm({ inicial, onSave, onCancel }) {
   const [form, setForm] = useState({ ...EMPTY, ...inicial });
+  const [plantillaOperaciones, setPlantillaOperaciones] = useState(inicial?.plantilla_operaciones || []);
+  const [catalogoAdicionales, setCatalogoAdicionales]   = useState(inicial?.catalogo_adicionales || []);
+  const [proveedores, setProveedores] = useState([]);
+  const [tab, setTab] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState('');
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  useEffect(() => {
+    proveedoresApi.getAll({ activo: true }).then(r => setProveedores(r.data || [])).catch(() => {});
+    if (inicial?.id) {
+      serviciosApi.getById(inicial.id).then(r => {
+        setPlantillaOperaciones(r.data?.plantilla_operaciones || []);
+        setCatalogoAdicionales(r.data?.catalogo_adicionales || []);
+      }).catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -29,6 +50,15 @@ export default function ServicioForm({ inicial, onSave, onCancel }) {
         precio_base_usd: Number(form.precio_base_usd),
         min_pax:         Number(form.min_pax),
         max_pax:         form.max_pax ? Number(form.max_pax) : undefined,
+        plantilla_operaciones: plantillaOperaciones.map(op => ({
+          ...op,
+          proveedor_id: op.proveedor_id || null,
+          cantidad: Number(op.cantidad) || 1,
+          costo_unitario_usd: Number(op.costo_unitario_usd) || 0,
+        })),
+        catalogo_adicionales: catalogoAdicionales
+          .filter(it => it.nombre?.trim())
+          .map(it => ({ nombre: it.nombre, precio_usd: Number(it.precio_usd) || 0 })),
       });
     } catch (err) { setError(err.error || 'Error al guardar'); }
     finally { setSaving(false); }
@@ -38,6 +68,32 @@ export default function ServicioForm({ inicial, onSave, onCancel }) {
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && <Alert type="error" message={error} onClose={() => setError('')} />}
 
+      <div className="flex gap-1" style={{ borderBottom: '2px solid var(--border)' }}>
+        {TABS.map((t, i) => (
+          <button key={t} type="button" onClick={() => setTab(i)}
+            className="px-3 py-2 text-xs font-semibold border-b-2 -mb-0.5 transition-colors cursor-pointer"
+            style={tab === i
+              ? { borderColor: 'var(--brand)', color: 'var(--brand)' }
+              : { borderColor: 'transparent', color: 'var(--text-2)' }}>
+            {t}
+            {t === 'Operaciones de plantilla' && plantillaOperaciones.length > 0 && (
+              <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full" style={{ background: 'var(--card-2)' }}>{plantillaOperaciones.length}</span>
+            )}
+            {t === 'Servicios adicionales' && catalogoAdicionales.length > 0 && (
+              <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full" style={{ background: 'var(--card-2)' }}>{catalogoAdicionales.length}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {tab === 1 && (
+        <PlantillaOperacionesForm operaciones={plantillaOperaciones} proveedores={proveedores} onChange={setPlantillaOperaciones} />
+      )}
+      {tab === 2 && (
+        <CatalogoAdicionalesForm items={catalogoAdicionales} onChange={setCatalogoAdicionales} />
+      )}
+
+      <div className={tab === 0 ? 'space-y-4' : 'hidden'}>
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="label">Código <span className="text-red-500">*</span></label>
@@ -121,6 +177,7 @@ export default function ServicioForm({ inicial, onSave, onCancel }) {
             <span className="text-sm text-gray-700">{lbl}</span>
           </label>
         ))}
+      </div>
       </div>
 
       <div className="flex gap-3 justify-end pt-2">

@@ -21,14 +21,15 @@ const proveedorSchema = z.object({
 
 const detalleSchemaBase = z.object({
   reserva_id:          z.number().int().positive(),
-  proveedor_id:        z.number().int().positive(),
-  tipo_servicio:       z.enum(['HOTEL','TRANSPORTE','RESTAURANTE','GUIA','AEROLINEA','TREN','OPERADOR_LOCAL','SEGURO','ACTIVIDAD','OTRO']),
+  proveedor_id:        z.number().int().positive().optional().nullable(),
+  tipo_servicio:       z.enum(['HOTEL','TRANSPORTE','RESTAURANTE','GUIA','AEROLINEA','TREN','OPERADOR_LOCAL','SEGURO','ACTIVIDAD','OTRO','INGRESOS']),
   descripcion:         z.string().max(500).optional().or(z.literal('')).nullable(),
   fecha_inicio:        z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   fecha_fin:           z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal('')).nullable(),
   hora_inicio:         z.string().optional().or(z.literal('')).nullable(),
   cantidad:            z.number().int().min(1).default(1),
   costo_unitario_usd:  z.number().min(0).default(0),
+  moneda:              z.enum(['USD','PEN']).default('USD'),
   estado:              z.enum(['PENDIENTE','SOLICITADO','RESERVADO','PAGADO','CONFIRMADO','RECONFIRMADO','EMITIDO','ANULADO','FACTURADO','COMPLETADO','CANCELADO','PENDIENTE_PAGO']).default('PENDIENTE'),
   confirmacion_ref:    z.string().max(100).optional().or(z.literal('')).nullable(),
   notas:               z.string().optional().or(z.literal('')).nullable(),
@@ -39,7 +40,23 @@ const withFechaCheck = (schema) => schema.refine(
   { message: 'La fecha fin no puede ser anterior a la fecha inicio', path: ['fecha_fin'] }
 );
 
-const detalleSchema = withFechaCheck(detalleSchemaBase);
+// INGRESOS es un registro libre (sin proveedor); el resto de tipos sí lo requieren.
+// Solo aplica a create (schema completo) — en updates parciales el campo puede
+// simplemente no venir en el body sin que eso signifique quitar el proveedor.
+const withProveedorCheck = (schema) => schema.refine(
+  d => d.proveedor_id != null || d.tipo_servicio === 'INGRESOS',
+  { message: 'Selecciona un proveedor', path: ['proveedor_id'] }
+);
+
+const detalleSchema = withProveedorCheck(withFechaCheck(detalleSchemaBase));
+
+const tareaOperacionSchema = z.object({
+  titulo:            z.string().min(2).max(300),
+  fecha:             z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal('')).nullable(),
+  monto:             z.number().optional().nullable(),
+  persona_encargada: z.string().max(200).optional().or(z.literal('')).nullable(),
+  completada:        z.boolean().default(false),
+});
 
 const getAll = async (req, res, next) => {
   try {
@@ -92,10 +109,26 @@ const getAllDetalles = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+// Checklist estándar que se precarga al crear una operación de tipo GUIA
+const CHECKLIST_GUIA = [
+  'Fecha de confirmación',
+  'Fecha de reconfirmación',
+  'Fecha de entrega de sobre y equipo necesario',
+  'Fecha que recibimos sus comprobantes',
+  'Fecha que recibimos su recibo por honorario',
+  'Fecha de pago',
+];
+
 const createDetalle = async (req, res, next) => {
   try {
     const body = detalleSchema.parse(req.body);
     const data = await service.createDetalle(body);
+    if (body.tipo_servicio === 'GUIA') {
+      await service.createTareasOperacionBulk(
+        data.id,
+        CHECKLIST_GUIA.map(titulo => ({ titulo }))
+      );
+    }
     res.status(201).json({ ok: true, data });
   } catch (err) { next(err); }
 };
@@ -115,4 +148,37 @@ const deleteDetalle = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-module.exports = { getAll, getById, create, update, remove, getDetallesByReserva, getAllDetalles, createDetalle, updateDetalle, deleteDetalle };
+const getTareasOperacion = async (req, res, next) => {
+  try {
+    const data = await service.getTareasByDetalle(Number(req.params.detalleId));
+    res.json({ ok: true, data });
+  } catch (err) { next(err); }
+};
+
+const createTareaOperacion = async (req, res, next) => {
+  try {
+    const body = tareaOperacionSchema.parse(req.body);
+    const data = await service.createTareaOperacion(Number(req.params.detalleId), body);
+    res.status(201).json({ ok: true, data });
+  } catch (err) { next(err); }
+};
+
+const updateTareaOperacion = async (req, res, next) => {
+  try {
+    const body = tareaOperacionSchema.partial().parse(req.body);
+    const data = await service.updateTareaOperacion(Number(req.params.tareaId), body);
+    res.json({ ok: true, data });
+  } catch (err) { next(err); }
+};
+
+const deleteTareaOperacion = async (req, res, next) => {
+  try {
+    await service.deleteTareaOperacion(Number(req.params.tareaId));
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+};
+
+module.exports = {
+  getAll, getById, create, update, remove, getDetallesByReserva, getAllDetalles, createDetalle, updateDetalle, deleteDetalle,
+  getTareasOperacion, createTareaOperacion, updateTareaOperacion, deleteTareaOperacion,
+};

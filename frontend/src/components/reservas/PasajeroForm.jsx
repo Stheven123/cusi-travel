@@ -10,7 +10,7 @@ const EMPTY = {
   email: '', telefono: '', whatsapp: '',
   es_vegetariano: false, es_vegano: false, es_pescetariano: false, es_flexitariano: false,
   es_celiaco: false, es_diabetico: false, es_halal: false, sin_lactosa: false,
-  quechua_extra_kg: '', trekking_poles: false, sleeping_bag: false, carpa_privada: false,
+  quechua_extra_kg: '', trekking_poles: false, sleeping_bag: false, carpa_privada: false, duffel_bag: false,
   alergias: '', restricciones_alimenticias: '', condicion_medica: '', observaciones: '',
 };
 
@@ -218,6 +218,7 @@ export default function PasajeroForm({ reservaId, inicial, onSave, onCancel }) {
           <CheckToggle checked={form.trekking_poles} onChange={v => set('trekking_poles', v)} label="Trekking poles" />
           <CheckToggle checked={form.sleeping_bag}   onChange={v => set('sleeping_bag', v)}   label="Sleeping bag" />
           <CheckToggle checked={form.carpa_privada}  onChange={v => set('carpa_privada', v)}  label="Carpa privada" />
+          <CheckToggle checked={form.duffel_bag}     onChange={v => set('duffel_bag', v)}     label="Duffel bag" />
         </div>
       </div>
 

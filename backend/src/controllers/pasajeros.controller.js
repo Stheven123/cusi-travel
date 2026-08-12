@@ -25,6 +25,7 @@ const pasajeroSchema = z.object({
   trekking_poles:            z.boolean().default(false),
   sleeping_bag:              z.boolean().default(false),
   carpa_privada:             z.boolean().default(false),
+  duffel_bag:                z.boolean().default(false),
   alergias:                  z.string().max(500).optional().nullable(),
   restricciones_alimenticias: z.string().optional().nullable(), // sanitizado por middleware
   condicion_medica:          z.string().optional().nullable(),

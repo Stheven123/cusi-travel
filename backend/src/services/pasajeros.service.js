@@ -37,9 +37,9 @@ const create = async (data) => {
         pasaporte, pasaporte_vencimiento, email, telefono, whatsapp,
         es_vegetariano, es_vegano, es_pescetariano, es_flexitariano,
         es_celiaco, es_diabetico, es_halal, sin_lactosa,
-        quechua_extra_kg, trekking_poles, sleeping_bag, carpa_privada,
+        quechua_extra_kg, trekking_poles, sleeping_bag, carpa_privada, duffel_bag,
         alergias, restricciones_alimenticias, condicion_medica, observaciones)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)
      RETURNING *`,
     [
       data.reserva_id,
@@ -65,6 +65,7 @@ const create = async (data) => {
       data.trekking_poles        ?? false,
       data.sleeping_bag          ?? false,
       data.carpa_privada         ?? false,
+      data.duffel_bag            ?? false,
       data.alergias              || null,
       data.restricciones_alimenticias || null,
       data.condicion_medica      || null,

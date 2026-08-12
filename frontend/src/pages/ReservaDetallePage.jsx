@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Edit2, Trash2, Plus, UserPlus, MapPin, Users,
   Calendar, DollarSign, CheckCircle2, Clock,
-  ChevronDown, ClipboardList, FileText,
+  ChevronDown, ClipboardList, FileText, X, Download,
 } from 'lucide-react';
 import { reservasApi } from '../api/reservas.api';
 import { pasajerosApi } from '../api/pasajeros.api';
@@ -11,6 +11,7 @@ import { proveedoresApi } from '../api/proveedores.api';
 import { briefingsApi } from '../api/briefings.api';
 import { tareasApi } from '../api/tareas.api';
 import { usuariosApi } from '../api/usuarios.api';
+import { reportesApi } from '../api/reportes.api';
 import { TareaForm } from './TareasPage';
 import { EstadoOpBadge, EstadoPagoBadge, PrioridadBadge, EstadoTareaBadge } from '../components/ui/Badge';
 import { PageLoader } from '../components/ui/Spinner';
@@ -19,6 +20,7 @@ import Alert from '../components/ui/Alert';
 import ReservaForm from '../components/reservas/ReservaForm';
 import PasajeroForm from '../components/reservas/PasajeroForm';
 import { fmtFecha, fmtMoneda } from '../utils/formatters';
+import { generarOrdenServicioPDF } from '../utils/ordenServicioPDF';
 import { ESTADOS_OPERACION } from '../utils/constants';
 
 const TABS = ['Info', 'Pasajeros', 'Operaciones', 'Tareas', 'Briefings'];
@@ -54,6 +56,7 @@ const ESTADOS_DETALLE = [
 ];
 
 const TIPOS_SERVICIO_OP = ['HOTEL','TRANSPORTE','RESTAURANTE','GUIA','AEROLINEA','TREN','OPERADOR_LOCAL','SEGURO','ACTIVIDAD','OTRO'];
+const TIPOS_OPERACION = [...TIPOS_SERVICIO_OP, 'INGRESOS'];
 
 const PRIORIDAD_CLR = {
   URGENTE: '#dc2626', ALTA: '#f97316', MEDIA: '#4f46e5', BAJA: '#c0bad6',
@@ -81,7 +84,7 @@ function PaxTable({ pasajeros, onEdit, onDelete }) {
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr style={{ background: 'var(--card-2)', borderBottom: '2px solid var(--border)' }}>
-              {['#','Pasajero','Género','Nac.','Pasaporte','Vencimiento','Nacimiento','Edad','Dieta / Salud',''].map(h => (
+              {['#','Pasajero','Género','Nac.','Pasaporte','Vencimiento','Nacimiento','Edad','Dieta / Salud','Equipo',''].map(h => (
                 <th key={h} className="px-3 py-3 text-left text-xs font-black uppercase tracking-wider whitespace-nowrap"
                   style={{ color: 'var(--text-3)' }}>{h}</th>
               ))}
@@ -152,6 +155,18 @@ function PaxTable({ pasajeros, onEdit, onDelete }) {
                     </div>
                   </td>
                   <td className="px-3 py-3">
+                    <div className="flex flex-wrap gap-1 min-w-[80px]">
+                      {p.quechua_extra_kg && <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(14,165,233,0.13)', color: '#0369a1' }}>Duffel extra {p.quechua_extra_kg}kg</span>}
+                      {p.trekking_poles   && <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(14,165,233,0.13)', color: '#0369a1' }}>Bastones</span>}
+                      {p.sleeping_bag     && <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(14,165,233,0.13)', color: '#0369a1' }}>Sleeping</span>}
+                      {p.carpa_privada    && <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(14,165,233,0.13)', color: '#0369a1' }}>Carpa</span>}
+                      {p.duffel_bag       && <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(14,165,233,0.13)', color: '#0369a1' }}>Duffel bag</span>}
+                      {!p.quechua_extra_kg && !p.trekking_poles && !p.sleeping_bag && !p.carpa_privada && !p.duffel_bag && (
+                        <span className="text-xs" style={{ color: 'var(--text-3)' }}>—</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-3 py-3">
                     <div className="flex items-center gap-1">
                       <button onClick={() => onEdit(p)} className="p-1.5 rounded-lg cursor-pointer hover:opacity-70"
                         style={{ color: 'var(--text-2)' }}>
@@ -173,46 +188,162 @@ function PaxTable({ pasajeros, onEdit, onDelete }) {
   );
 }
 
+/* ── Checklist de tareas de una operación ──────────────────────── */
+const TAREA_OP_EMPTY = { titulo: '', fecha: '', monto: '', persona_encargada: '' };
+
+function TareaOperacionForm({ onSave, onCancel }) {
+  const [f, setF] = useState(TAREA_OP_EMPTY);
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const submit = (e) => {
+    e.preventDefault();
+    if (!f.titulo.trim()) return;
+    onSave({
+      titulo: f.titulo,
+      fecha: f.fecha || null,
+      monto: f.monto === '' ? null : Number(f.monto),
+      persona_encargada: f.persona_encargada || null,
+    });
+  };
+  return (
+    <form onSubmit={submit} className="flex flex-wrap items-end gap-2 p-2 rounded-xl" style={{ background: 'var(--card-2)' }}>
+      <input className="input-field text-xs flex-1 min-w-[160px]" placeholder="Nueva tarea..." value={f.titulo}
+        onChange={e => set('titulo', e.target.value)} autoFocus />
+      <input type="date" className="input-field text-xs" style={{ width: '9.5rem' }} value={f.fecha}
+        onChange={e => set('fecha', e.target.value)} />
+      <input type="number" step="0.01" className="input-field text-xs" style={{ width: '6.5rem' }} placeholder="Monto"
+        value={f.monto} onChange={e => set('monto', e.target.value)} />
+      <input className="input-field text-xs" style={{ width: '9rem' }} placeholder="Encargado"
+        value={f.persona_encargada} onChange={e => set('persona_encargada', e.target.value)} />
+      <button type="submit" className="p-2 rounded-lg cursor-pointer" style={{ background: 'var(--brand)', color: 'white' }}>
+        <Plus size={13} />
+      </button>
+      <button type="button" onClick={onCancel} className="p-2 rounded-lg cursor-pointer" style={{ color: 'var(--text-2)' }}>
+        <X size={13} />
+      </button>
+    </form>
+  );
+}
+
+function OperacionChecklist({ detalleId }) {
+  const [tareas, setTareas] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [err, setErr] = useState('');
+
+  const load = useCallback(async () => {
+    try { const r = await proveedoresApi.getTareasOperacion(detalleId); setTareas(r.data || []); }
+    catch { setErr('No se pudo cargar el checklist'); }
+  }, [detalleId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const toggle = async (t) => {
+    setTareas(prev => prev.map(x => x.id === t.id ? { ...x, completada: !t.completada } : x));
+    try { await proveedoresApi.updateTareaOperacion(t.id, { completada: !t.completada }); }
+    catch { load(); }
+  };
+
+  const remove = async (id) => {
+    try { await proveedoresApi.deleteTareaOperacion(id); load(); }
+    catch { setErr('No se pudo eliminar'); }
+  };
+
+  const add = async (data) => {
+    try { await proveedoresApi.createTareaOperacion(detalleId, data); setShowForm(false); load(); }
+    catch { setErr('No se pudo agregar la tarea'); }
+  };
+
+  if (tareas === null) return <p className="text-xs px-2 py-1" style={{ color: 'var(--text-3)' }}>Cargando checklist...</p>;
+
+  return (
+    <div className="space-y-1.5 pt-2 mt-2" style={{ borderTop: '1px dashed var(--border)' }}>
+      {err && <p className="text-xs" style={{ color: '#ef4444' }}>{err}</p>}
+      {tareas.length === 0 && !showForm && (
+        <p className="text-xs px-2" style={{ color: 'var(--text-3)' }}>Sin tareas en el checklist.</p>
+      )}
+      {tareas.map(t => (
+        <div key={t.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs" style={{ background: 'var(--card-2)' }}>
+          <button type="button" onClick={() => toggle(t)} className="flex-shrink-0 cursor-pointer"
+            style={{ color: t.completada ? '#10b981' : 'var(--text-3)' }}>
+            <CheckCircle2 size={15} />
+          </button>
+          <span className={`flex-1 min-w-0 truncate ${t.completada ? 'line-through' : ''}`}
+            style={{ color: t.completada ? 'var(--text-3)' : 'var(--text)' }}>
+            {t.titulo}
+          </span>
+          {t.fecha && <span className="flex-shrink-0" style={{ color: 'var(--text-3)' }}>{fmtFecha(t.fecha)}</span>}
+          {t.monto != null && <span className="flex-shrink-0 font-semibold" style={{ color: 'var(--text-2)' }}>{fmtMoneda(t.monto)}</span>}
+          {t.persona_encargada && (
+            <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full" style={{ background: 'var(--card)', color: 'var(--text-2)' }}>
+              {t.persona_encargada}
+            </span>
+          )}
+          <button type="button" onClick={() => remove(t.id)} className="flex-shrink-0 cursor-pointer" style={{ color: '#ef4444' }}>
+            <Trash2 size={12} />
+          </button>
+        </div>
+      ))}
+      {showForm ? (
+        <TareaOperacionForm onSave={add} onCancel={() => setShowForm(false)} />
+      ) : (
+        <button type="button" onClick={() => setShowForm(true)}
+          className="text-xs font-semibold px-2 py-1 cursor-pointer flex items-center gap-1" style={{ color: 'var(--brand)' }}>
+          <Plus size={12} /> Agregar tarea
+        </button>
+      )}
+    </div>
+  );
+}
+
 /* ── Operation row (with edit/delete) ─────────────────────────── */
 function OperacionRow({ d, onEdit, onDelete }) {
   const clr = ESTADO_DETALLE_CLR[d.estado] || '#8892aa';
+  const [open, setOpen] = useState(false);
   return (
-    <div className="flex items-start gap-3 py-3 px-4 rounded-2xl relative overflow-hidden"
+    <div className="py-3 px-4 rounded-2xl relative overflow-hidden"
       style={{ background: 'var(--card)', boxShadow: 'var(--shadow-sm)' }}>
       <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl" style={{ background: clr }} />
-      <div className="pl-2 flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <p className="font-semibold text-sm" style={{ color: 'var(--text)' }}>{d.proveedor_nombre || '—'}</p>
-          {d.tipo_servicio && (
-            <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--card-2)', color: 'var(--text-2)' }}>
-              {d.tipo_servicio}
+      <div className="flex items-start gap-3">
+        <div className="pl-2 flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-semibold text-sm" style={{ color: 'var(--text)' }}>
+              {d.proveedor_nombre || (d.tipo_servicio === 'INGRESOS' ? (d.descripcion || 'Ingreso libre') : '—')}
+            </p>
+            {d.tipo_servicio && (
+              <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--card-2)', color: 'var(--text-2)' }}>
+                {d.tipo_servicio}
+              </span>
+            )}
+            <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
+              style={{ background: `${clr}22`, color: clr }}>
+              {ESTADOS_DETALLE.find(e => e.value === d.estado)?.label || d.estado}
             </span>
-          )}
-          <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
-            style={{ background: `${clr}22`, color: clr }}>
-            {ESTADOS_DETALLE.find(e => e.value === d.estado)?.label || d.estado}
-          </span>
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1 text-xs" style={{ color: 'var(--text-2)' }}>
+            {d.fecha_inicio && <span className="flex items-center gap-1"><Calendar size={11} />{fmtFecha(d.fecha_inicio)}</span>}
+            {d.descripcion  && <span className="truncate max-w-[200px]">{d.descripcion}</span>}
+            {d.confirmacion_ref && <span className="font-mono">{d.confirmacion_ref}</span>}
+          </div>
         </div>
-        <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1 text-xs" style={{ color: 'var(--text-2)' }}>
-          {d.fecha_inicio && <span className="flex items-center gap-1"><Calendar size={11} />{fmtFecha(d.fecha_inicio)}</span>}
-          {d.descripcion  && <span className="truncate max-w-[200px]">{d.descripcion}</span>}
-          {d.confirmacion_ref && <span className="font-mono">{d.confirmacion_ref}</span>}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="text-right">
+            <p className="font-bold text-sm" style={{ color: 'var(--text)' }}>{fmtMoneda(d.costo_total_usd, d.moneda)}</p>
+            <p className="text-xs" style={{ color: 'var(--text-3)' }}>x{d.cantidad}</p>
+          </div>
+          <button onClick={() => setOpen(o => !o)} className="p-1.5 rounded-lg cursor-pointer hover:opacity-70"
+            style={{ color: 'var(--text-2)' }} title="Checklist de tareas">
+            <ChevronDown size={14} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+          </button>
+          <button onClick={() => onEdit(d)} className="p-1.5 rounded-lg cursor-pointer hover:opacity-70"
+            style={{ color: 'var(--text-2)' }}>
+            <Edit2 size={14} />
+          </button>
+          <button onClick={() => onDelete(d.id)} className="p-1.5 rounded-lg cursor-pointer hover:opacity-70"
+            style={{ color: '#ef4444' }}>
+            <Trash2 size={14} />
+          </button>
         </div>
       </div>
-      <div className="flex items-center gap-2 flex-shrink-0">
-        <div className="text-right">
-          <p className="font-bold text-sm" style={{ color: 'var(--text)' }}>{fmtMoneda(d.costo_total_usd)}</p>
-          <p className="text-xs" style={{ color: 'var(--text-3)' }}>x{d.cantidad}</p>
-        </div>
-        <button onClick={() => onEdit(d)} className="p-1.5 rounded-lg cursor-pointer hover:opacity-70"
-          style={{ color: 'var(--text-2)' }}>
-          <Edit2 size={14} />
-        </button>
-        <button onClick={() => onDelete(d.id)} className="p-1.5 rounded-lg cursor-pointer hover:opacity-70"
-          style={{ color: '#ef4444' }}>
-          <Trash2 size={14} />
-        </button>
-      </div>
+      {open && <div className="pl-2"><OperacionChecklist detalleId={d.id} /></div>}
     </div>
   );
 }
@@ -251,7 +382,7 @@ function TareaRow({ t, navigate }) {
 /* ── Detalle (operation) form — supports create and edit ─────── */
 const DETALLE_EMPTY = {
   proveedor_id: '', tipo_servicio: '', fecha_inicio: '', fecha_fin: '',
-  descripcion: '', cantidad: 1, costo_unitario_usd: '',
+  descripcion: '', cantidad: 1, costo_unitario_usd: '', moneda: 'USD',
   estado: 'PENDIENTE', notas: '',
 };
 
@@ -267,6 +398,7 @@ function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
   const [saving, setSaving] = useState(false);
   const [tipoProveedor, setTipoProveedor] = useState('');
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const esIngreso = f.tipo_servicio === 'INGRESOS';
   const proveedoresFiltrados = tipoProveedor
     ? proveedores.filter(p => p.tipo === tipoProveedor)
     : proveedores;
@@ -274,7 +406,7 @@ function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErr('');
-    if (!f.proveedor_id)  return setErr('Selecciona un proveedor');
+    if (!esIngreso && !f.proveedor_id) return setErr('Selecciona un proveedor');
     if (!f.tipo_servicio) return setErr('Selecciona el tipo de servicio');
     if (!f.fecha_inicio)  return setErr('Ingresa la fecha de inicio');
     if (f.fecha_fin && f.fecha_fin < f.fecha_inicio) return setErr('La fecha fin no puede ser anterior a la fecha inicio');
@@ -282,13 +414,14 @@ function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
     try {
       await onSave({
         reserva_id:         reservaId,
-        proveedor_id:       Number(f.proveedor_id),
+        proveedor_id:       f.proveedor_id ? Number(f.proveedor_id) : null,
         tipo_servicio:      f.tipo_servicio,
         fecha_inicio:       f.fecha_inicio,
         fecha_fin:          f.fecha_fin   || undefined,
         descripcion:        f.descripcion  || undefined,
         cantidad:           Number(f.cantidad) || 1,
         costo_unitario_usd: Number(f.costo_unitario_usd) || 0,
+        moneda:             f.moneda,
         notas:              f.notas        || undefined,
         estado:             f.estado,
       });
@@ -305,27 +438,12 @@ function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
           {err}
         </div>
       )}
-      <div>
-        <label className="label">Tipo de proveedor (filtro)</label>
-        <select className="input-field" value={tipoProveedor}
-          onChange={e => { setTipoProveedor(e.target.value); set('proveedor_id', ''); }}>
-          <option value="">— Todos los tipos —</option>
-          {TIPOS_SERVICIO_OP.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>
-      </div>
-      <div>
-        <label className="label">Proveedor <span style={{ color: '#ef4444' }}>*</span></label>
-        <select className="input-field" value={f.proveedor_id} onChange={e => set('proveedor_id', e.target.value)} required>
-          <option value="">— Selecciona un proveedor —</option>
-          {proveedoresFiltrados.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-        </select>
-      </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="label">Tipo de servicio <span style={{ color: '#ef4444' }}>*</span></label>
+          <label className="label">Tipo de operación <span style={{ color: '#ef4444' }}>*</span></label>
           <select className="input-field" value={f.tipo_servicio} onChange={e => set('tipo_servicio', e.target.value)} required>
             <option value="">— Selecciona —</option>
-            {TIPOS_SERVICIO_OP.map(t => <option key={t} value={t}>{t}</option>)}
+            {TIPOS_OPERACION.map(t => <option key={t} value={t}>{t === 'INGRESOS' ? 'INGRESOS (sin proveedor)' : t}</option>)}
           </select>
         </div>
         <div>
@@ -335,6 +453,33 @@ function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
           </select>
         </div>
       </div>
+      {esIngreso ? (
+        <div>
+          <label className="label">Proveedor (opcional)</label>
+          <select className="input-field" value={f.proveedor_id} onChange={e => set('proveedor_id', e.target.value)}>
+            <option value="">— Sin proveedor (ingreso libre) —</option>
+            {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+          </select>
+        </div>
+      ) : (
+        <>
+          <div>
+            <label className="label">Tipo de proveedor (filtro)</label>
+            <select className="input-field" value={tipoProveedor}
+              onChange={e => { setTipoProveedor(e.target.value); set('proveedor_id', ''); }}>
+              <option value="">— Todos los tipos —</option>
+              {TIPOS_SERVICIO_OP.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">Proveedor <span style={{ color: '#ef4444' }}>*</span></label>
+            <select className="input-field" value={f.proveedor_id} onChange={e => set('proveedor_id', e.target.value)} required>
+              <option value="">— Selecciona un proveedor —</option>
+              {proveedoresFiltrados.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+            </select>
+          </div>
+        </>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label">Fecha inicio <span style={{ color: '#ef4444' }}>*</span></label>
@@ -359,9 +504,16 @@ function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
             onChange={e => set('cantidad', e.target.value)} />
         </div>
         <div>
-          <label className="label">Costo unitario (USD)</label>
-          <input type="number" step="0.01" min="0" className="input-field" value={f.costo_unitario_usd}
-            onChange={e => set('costo_unitario_usd', e.target.value)} placeholder="0.00" />
+          <label className="label">Costo unitario</label>
+          <div className="flex gap-2">
+            <select className="input-field" style={{ width: '5.5rem', flexShrink: 0 }} value={f.moneda}
+              onChange={e => set('moneda', e.target.value)}>
+              <option value="USD">USD $</option>
+              <option value="PEN">PEN S/</option>
+            </select>
+            <input type="number" step="0.01" min="0" className="input-field" value={f.costo_unitario_usd}
+              onChange={e => set('costo_unitario_usd', e.target.value)} placeholder="0.00" />
+          </div>
         </div>
       </div>
       <div>
@@ -617,6 +769,29 @@ export default function ReservaDetallePage() {
     setBriefings(brfs.data || []);
   };
 
+  const handleGenerarInvoice = async () => {
+    try {
+      const lineItems = [
+        {
+          qty: reserva.n_pasajeros || 1,
+          description: reserva.servicio_nombre || reserva.nombre_servicio_snap || 'Servicio turístico',
+          unit_price: Number(reserva.precio_usd_por_pax),
+        },
+        ...(reserva.servicios_adicionales || []).map(e => ({
+          qty: e.cantidad, description: e.nombre, unit_price: Number(e.precio_unitario_usd),
+        })),
+      ];
+      const blob = await reportesApi.generarInvoice(reserva.id, { lineItems });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `Invoice-${reserva.codigo_reserva}.xlsx`;
+      document.body.appendChild(a); a.click(); a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      setError('No se pudo generar el invoice');
+    }
+  };
+
   const handleSaveTarea = async (data) => {
     await tareasApi.create(data);
     setTareaModal(false);
@@ -688,6 +863,18 @@ export default function ReservaDetallePage() {
                   </>
                 )}
               </div>
+              <button onClick={() => generarOrdenServicioPDF(reserva)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold cursor-pointer transition-all"
+                style={{ background: 'rgba(255,255,255,0.18)', color: 'white' }}
+                title="Genera un PDF preliminar — el formato final se definirá luego">
+                <FileText size={14} /> Orden de servicio
+              </button>
+              <button onClick={handleGenerarInvoice}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold cursor-pointer transition-all"
+                style={{ background: 'rgba(255,255,255,0.18)', color: 'white' }}
+                title="Descarga el invoice en Excel, incluyendo los servicios adicionales">
+                <Download size={14} /> Invoice
+              </button>
               <button onClick={() => setEditModal(true)}
                 className="p-2 rounded-xl cursor-pointer transition-all"
                 style={{ background: 'rgba(255,255,255,0.15)', color: 'white' }}>
@@ -719,6 +906,12 @@ export default function ReservaDetallePage() {
               <span className="flex items-center gap-1.5">
                 <MapPin size={12} />
                 {reserva.operador_nombre}
+              </span>
+            )}
+            {reserva.guia_nombre && (
+              <span className="flex items-center gap-1.5">
+                <Users size={12} />
+                Guía: {reserva.guia_nombre}
               </span>
             )}
           </div>
@@ -779,6 +972,7 @@ export default function ReservaDetallePage() {
             ['Agencia', reserva.agencia_nombre],
             ['Código agencia', reserva.agencia_codigo],
             ['Operador', reserva.operador_nombre],
+            ['Guía asignado', reserva.guia_nombre],
             ['Hora encuentro', reserva.hora_encuentro],
             ['Lugar encuentro', reserva.lugar_encuentro],
             ['Precio x pax', fmtMoneda(reserva.precio_usd_por_pax)],
@@ -796,6 +990,20 @@ export default function ReservaDetallePage() {
               style={{ background: 'var(--card)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
               <p className="text-xs font-bold uppercase tracking-wide mb-1" style={{ color: 'var(--text-3)' }}>Observaciones</p>
               <p className="text-sm leading-relaxed" style={{ color: 'var(--text)' }}>{reserva.observaciones}</p>
+            </div>
+          )}
+          {reserva.servicios_adicionales?.length > 0 && (
+            <div className="col-span-2 sm:col-span-3 lg:col-span-4 rounded-2xl p-4"
+              style={{ background: 'var(--card)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
+              <p className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: 'var(--text-3)' }}>Servicios adicionales</p>
+              <div className="space-y-1">
+                {reserva.servicios_adicionales.map(e => (
+                  <div key={e.id} className="flex justify-between text-sm" style={{ color: 'var(--text)' }}>
+                    <span>{e.nombre} {e.cantidad > 1 ? `×${e.cantidad}` : ''}</span>
+                    <span className="font-semibold">{fmtMoneda(Number(e.cantidad) * Number(e.precio_unitario_usd))}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
           {briefings.length > 0 && (() => {

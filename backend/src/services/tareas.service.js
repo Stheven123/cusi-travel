@@ -85,12 +85,24 @@ const create = async (data, creadoPorId) => {
   return rows[0];
 };
 
-const update = async (id, data) => {
-  const campos  = Object.keys(data);
-  if (!campos.length) throw new AppError('Sin datos para actualizar', 400, 'EMPTY_UPDATE');
+const update = async (id, data, usuarioId) => {
+  const campos = { ...data };
 
-  const sets   = campos.map((k, i) => `${k} = $${i + 2}`);
-  const values = campos.map(k => data[k]);
+  // La tabla exige completada_en cuando estado = COMPLETADA (chk_tareas_completada_tiene_fecha).
+  // El formulario de edición solo cambia "estado" — hay que fijar/limpiar el resto acá.
+  if (campos.estado === 'COMPLETADA') {
+    if (!campos.completada_en) campos.completada_en = new Date();
+    if (!campos.completada_por_id && usuarioId) campos.completada_por_id = usuarioId;
+  } else if (campos.estado) {
+    campos.completada_en = null;
+    campos.completada_por_id = null;
+  }
+
+  const keys = Object.keys(campos);
+  if (!keys.length) throw new AppError('Sin datos para actualizar', 400, 'EMPTY_UPDATE');
+
+  const sets   = keys.map((k, i) => `${k} = $${i + 2}`);
+  const values = keys.map(k => campos[k]);
 
   const { rows } = await query(
     `UPDATE cusi.tareas_pendientes SET ${sets.join(', ')} WHERE id = $1 RETURNING *`,

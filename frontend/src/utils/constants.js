@@ -57,7 +57,7 @@ export const NACIONALIDADES = [
   'Española','Francesa','Alemana','Italiana','Portuguesa','Británica','Suiza',
   'Holandesa','Belga','Sueca','Noruega','Danesa','Australiana','Neozelandesa',
   'China','Japonesa','Coreana','India','Israelí',
-];
+].sort((a, b) => a.localeCompare(b, 'es'));
 
 export const DIAS_SEMANA = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
 export const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];

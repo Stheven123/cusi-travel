@@ -17,6 +17,19 @@ const servicioSchema = z.object({
   politica_cancelacion: z.string().optional().or(z.literal('')).nullable(),
   activo:           z.boolean().default(true),
   es_plantilla:     z.boolean().default(false),
+  plantilla_operaciones: z.array(z.object({
+    tipo_servicio:      z.enum(['HOTEL','TRANSPORTE','RESTAURANTE','GUIA','AEROLINEA','TREN','OPERADOR_LOCAL','SEGURO','ACTIVIDAD','OTRO','INGRESOS']),
+    proveedor_id:       z.number().int().positive().optional().nullable(),
+    descripcion:        z.string().max(500).optional().or(z.literal('')).nullable(),
+    cantidad:           z.number().int().min(1).default(1),
+    costo_unitario_usd: z.number().min(0).default(0),
+    moneda:             z.enum(['USD','PEN']).default('USD'),
+    tareas:             z.array(z.object({ titulo: z.string().min(1).max(300) })).optional().default([]),
+  })).optional(),
+  catalogo_adicionales: z.array(z.object({
+    nombre:     z.string().min(1).max(200),
+    precio_usd: z.number().min(0).default(0),
+  })).optional(),
 });
 
 const itinerarioSchema = z.object({
