@@ -1,6 +1,7 @@
 [build]
   command = "npm run build"
   publish = "dist"
+  # Despliegue automático conectado a GitHub — verificado 2026-08-12
 
 # Proxy /api → backend en Render
 [[redirects]]
