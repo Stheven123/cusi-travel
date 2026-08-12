@@ -2,10 +2,10 @@
   command = "npm run build"
   publish = "dist"
 
-# Proxy /api → backend en Railway
+# Proxy /api → backend en Render
 [[redirects]]
   from   = "/api/*"
-  to     = "https://cusi-travel-backend-production.up.railway.app/api/:splat"
+  to     = "https://cusi-travel-backend.onrender.com/api/:splat"
   status = 200
   force  = true
 
