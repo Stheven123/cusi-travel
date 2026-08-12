@@ -18,7 +18,7 @@ const servicioSchema = z.object({
   activo:           z.boolean().default(true),
   es_plantilla:     z.boolean().default(false),
   plantilla_operaciones: z.array(z.object({
-    tipo_servicio:      z.enum(['HOTEL','TRANSPORTE','RESTAURANTE','GUIA','AEROLINEA','TREN','OPERADOR_LOCAL','SEGURO','ACTIVIDAD','OTRO','INGRESOS']),
+    tipo_servicio:      z.enum(['HOTEL','TRANSPORTE','RESTAURANTE','GUIA','AEROLINEA','TREN','OPERADOR_LOCAL','SEGURO','ACTIVIDAD','COCINERO','PORTER','OTRO','INGRESOS']),
     proveedor_id:       z.number().int().positive().optional().nullable(),
     descripcion:        z.string().max(500).optional().or(z.literal('')).nullable(),
     cantidad:           z.number().int().min(1).default(1),

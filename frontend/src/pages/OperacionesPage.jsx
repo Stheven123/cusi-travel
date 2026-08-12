@@ -37,7 +37,7 @@ const TIPO_CLR = {
   OTRO:           '#8892aa',
 };
 
-const TIPOS_SERVICIO = ['HOTEL','TRANSPORTE','RESTAURANTE','GUIA','AEROLINEA','TREN','OPERADOR_LOCAL','SEGURO','ACTIVIDAD','OTRO'];
+const TIPOS_SERVICIO = ['HOTEL','TRANSPORTE','RESTAURANTE','GUIA','AEROLINEA','TREN','OPERADOR_LOCAL','SEGURO','ACTIVIDAD','COCINERO','PORTER','OTRO'];
 // Lista completa (coincide con el enum de la BD tras 03_migration.sql) — usada
 // en el selector de estado del formulario para no disparar CHECK/enum errors.
 const ESTADOS_DETALLE_FORM = ['PENDIENTE','SOLICITADO','RESERVADO','PAGADO','CONFIRMADO','RECONFIRMADO','EMITIDO','ANULADO','FACTURADO','COMPLETADO','CANCELADO','PENDIENTE_PAGO'];

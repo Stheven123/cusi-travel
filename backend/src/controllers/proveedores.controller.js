@@ -4,7 +4,7 @@ const service = require('../services/proveedores.service');
 const proveedorSchema = z.object({
   codigo:            z.string().min(2).max(20),
   nombre:            z.string().min(2).max(200),
-  tipo:              z.enum(['HOTEL','TRANSPORTE','RESTAURANTE','GUIA','AEROLINEA','TREN','OPERADOR_LOCAL','SEGURO','ACTIVIDAD','OTRO']),
+  tipo:              z.enum(['HOTEL','TRANSPORTE','RESTAURANTE','GUIA','AEROLINEA','TREN','OPERADOR_LOCAL','SEGURO','ACTIVIDAD','COCINERO','PORTER','OTRO']),
   contacto_nombre:   z.string().max(150).optional().or(z.literal('')).nullable(),
   contacto_email:    z.string().email().optional().or(z.literal('')).nullable(),
   contacto_telefono: z.string().max(30).optional().or(z.literal('')).nullable(),
@@ -22,7 +22,7 @@ const proveedorSchema = z.object({
 const detalleSchemaBase = z.object({
   reserva_id:          z.number().int().positive(),
   proveedor_id:        z.number().int().positive().optional().nullable(),
-  tipo_servicio:       z.enum(['HOTEL','TRANSPORTE','RESTAURANTE','GUIA','AEROLINEA','TREN','OPERADOR_LOCAL','SEGURO','ACTIVIDAD','OTRO','INGRESOS']),
+  tipo_servicio:       z.enum(['HOTEL','TRANSPORTE','RESTAURANTE','GUIA','AEROLINEA','TREN','OPERADOR_LOCAL','SEGURO','ACTIVIDAD','COCINERO','PORTER','OTRO','INGRESOS']),
   descripcion:         z.string().max(500).optional().or(z.literal('')).nullable(),
   fecha_inicio:        z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   fecha_fin:           z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal('')).nullable(),

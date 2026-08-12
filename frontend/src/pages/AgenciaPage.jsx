@@ -10,7 +10,8 @@ const STORAGE_KEY = 'cusitravel_agencia';
 const DEFAULTS = {
   nombre:       'Cusi Travel',
   slogan:       'Proud to be Quechua',
-  ruc:          '',
+  ruc:          '20491021439',
+  razon_social: 'Empresa Cusi Travel International SCRL',
   direccion:    'Calle Union #140',
   ciudad:       'Cusco',
   pais:         'Peru',
@@ -196,6 +197,10 @@ export default function AgenciaPage() {
               <div>
                 <Field icon={Hash} label="RUC / Registro" name="ruc" value={form.ruc}
                   onChange={set} placeholder="20XXXXXXXXX" />
+              </div>
+              <div className="col-span-2">
+                <Field icon={Building2} label="Razón social" name="razon_social" value={form.razon_social}
+                  onChange={set} placeholder="Empresa Cusi Travel International SCRL" />
               </div>
             </div>
           </div>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Plus, Trash2, ChevronDown, ChevronUp, X } from 'lucide-react';
 
-const TIPOS = ['HOTEL','TRANSPORTE','RESTAURANTE','GUIA','AEROLINEA','TREN','OPERADOR_LOCAL','SEGURO','ACTIVIDAD','OTRO','INGRESOS'];
+const TIPOS = ['HOTEL','TRANSPORTE','RESTAURANTE','GUIA','AEROLINEA','TREN','OPERADOR_LOCAL','SEGURO','ACTIVIDAD','COCINERO','PORTER','OTRO','INGRESOS'];
 
 const OP_VACIA = () => ({
   tipo_servicio: '', proveedor_id: '', descripcion: '',

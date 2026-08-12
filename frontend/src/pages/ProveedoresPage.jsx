@@ -9,7 +9,7 @@ import Alert from '../components/ui/Alert';
 const TIPO_COLOR = {
   HOTEL:'blue', TRANSPORTE:'green', RESTAURANTE:'orange', GUIA:'purple',
   AEROLINEA:'teal', TREN:'teal', OPERADOR_LOCAL:'green', SEGURO:'gray',
-  ACTIVIDAD:'yellow', OTRO:'gray',
+  ACTIVIDAD:'yellow', COCINERO:'orange', PORTER:'yellow', OTRO:'gray',
 };
 
 const EMPTY = {
@@ -42,6 +42,8 @@ function ProveedorForm({ inicial, onSave, onCancel }) {
             <option value="OPERADOR_LOCAL">Operador local</option>
             <option value="SEGURO">Seguro</option>
             <option value="ACTIVIDAD">Actividad</option>
+            <option value="COCINERO">Cocinero</option>
+            <option value="PORTER">Porter / Quechua</option>
             <option value="OTRO">Otro</option>
           </select>
         </div>

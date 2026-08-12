@@ -12,6 +12,7 @@ import { briefingsApi } from '../api/briefings.api';
 import { tareasApi } from '../api/tareas.api';
 import { usuariosApi } from '../api/usuarios.api';
 import { reportesApi } from '../api/reportes.api';
+import { serviciosApi } from '../api/servicios.api';
 import { TareaForm } from './TareasPage';
 import { EstadoOpBadge, EstadoPagoBadge, PrioridadBadge, EstadoTareaBadge } from '../components/ui/Badge';
 import { PageLoader } from '../components/ui/Spinner';
@@ -55,7 +56,7 @@ const ESTADOS_DETALLE = [
   { value: 'PENDIENTE_PAGO',label: 'Pendiente pago'},
 ];
 
-const TIPOS_SERVICIO_OP = ['HOTEL','TRANSPORTE','RESTAURANTE','GUIA','AEROLINEA','TREN','OPERADOR_LOCAL','SEGURO','ACTIVIDAD','OTRO'];
+const TIPOS_SERVICIO_OP = ['HOTEL','TRANSPORTE','RESTAURANTE','GUIA','AEROLINEA','TREN','OPERADOR_LOCAL','SEGURO','ACTIVIDAD','COCINERO','PORTER','OTRO'];
 const TIPOS_OPERACION = [...TIPOS_SERVICIO_OP, 'INGRESOS'];
 
 const PRIORIDAD_CLR = {
@@ -769,6 +770,21 @@ export default function ReservaDetallePage() {
     setBriefings(brfs.data || []);
   };
 
+  const handleGenerarOrdenServicio = async () => {
+    try {
+      let itinerarios = [];
+      if (reserva.servicio_id) {
+        try {
+          const r = await serviciosApi.getById(reserva.servicio_id);
+          itinerarios = r.data?.itinerarios || [];
+        } catch { /* si no se puede cargar el itinerario, se genera sin esa sección */ }
+      }
+      await generarOrdenServicioPDF({ reserva, briefings, itinerarios });
+    } catch {
+      setError('No se pudo generar la orden de salida');
+    }
+  };
+
   const handleGenerarInvoice = async () => {
     try {
       const lineItems = [
@@ -863,10 +879,10 @@ export default function ReservaDetallePage() {
                   </>
                 )}
               </div>
-              <button onClick={() => generarOrdenServicioPDF(reserva)}
+              <button onClick={handleGenerarOrdenServicio}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold cursor-pointer transition-all"
                 style={{ background: 'rgba(255,255,255,0.18)', color: 'white' }}
-                title="Genera un PDF preliminar — el formato final se definirá luego">
+                title="Genera el PDF de Orden de Salida con el formato real de Cusi Travel">
                 <FileText size={14} /> Orden de servicio
               </button>
               <button onClick={handleGenerarInvoice}
