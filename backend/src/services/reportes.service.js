@@ -39,20 +39,23 @@ const getKPIs = async () => {
 };
 
 // Motor de reportes para proveedores con filtros avanzados y selección de campos
+// NOTA: v_reporte_proveedores ya es una vista PLANA (sin alias de tabla) — las
+// columnas se filtran por su nombre final, no por "d.xxx" (esa era la causa de
+// que cualquier filtro rompiera el reporte con "missing FROM-clause entry").
 const reporteProveedores = async (filtros = {}) => {
   const conds  = ['1=1'];
   const values = [];
   let   idx    = 1;
 
-  if (filtros.proveedor_id)   { conds.push(`d.proveedor_id = $${idx++}`);         values.push(filtros.proveedor_id); }
-  if (filtros.tipo_proveedor) { conds.push(`d.tipo_servicio = $${idx++}`);         values.push(filtros.tipo_proveedor); }
-  if (filtros.fecha_desde)    { conds.push(`d.fecha_inicio >= $${idx++}`);         values.push(filtros.fecha_desde); }
-  if (filtros.fecha_hasta)    { conds.push(`d.fecha_inicio <= $${idx++}`);         values.push(filtros.fecha_hasta); }
-  if (filtros.estado)         { conds.push(`d.estado = $${idx++}`);                values.push(filtros.estado); }
+  if (filtros.proveedor_id)   { conds.push(`proveedor_id = $${idx++}`);   values.push(filtros.proveedor_id); }
+  if (filtros.tipo_proveedor) { conds.push(`tipo_servicio = $${idx++}`);  values.push(filtros.tipo_proveedor); }
+  if (filtros.fecha_desde)    { conds.push(`fecha_inicio >= $${idx++}`);  values.push(filtros.fecha_desde); }
+  if (filtros.fecha_hasta)    { conds.push(`fecha_inicio <= $${idx++}`);  values.push(filtros.fecha_hasta); }
+  if (filtros.estado)         { conds.push(`detalle_estado = $${idx++}`); values.push(filtros.estado); }
   if (filtros.reserva_ids?.length) {
     // Los IDs de reserva vienen validados como array de enteros desde el controller
     const placeholders = filtros.reserva_ids.map(() => `$${idx++}`).join(',');
-    conds.push(`d.reserva_id IN (${placeholders})`);
+    conds.push(`reserva_id IN (${placeholders})`);
     values.push(...filtros.reserva_ids);
   }
 

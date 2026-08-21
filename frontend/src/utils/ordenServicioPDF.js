@@ -323,11 +323,20 @@ export const generarOrdenServicioPDF = async ({ reserva, briefings = [], itinera
     y = doc.lastAutoTable.finalY + 5;
   }
 
-  // ── Presupuesto (costos operativos, por moneda) ──
+  // ── Presupuesto (notas libres + costos operativos, por moneda) ──
   const presupuesto = buildPresupuesto(reserva);
-  if (presupuesto.length) {
+  const presupuestoLibre = (reserva.presupuesto || '').trim();
+  if (presupuesto.length || presupuestoLibre) {
     y = ensureSpace(doc, y, 16);
     y = sectionHeader(doc, 'PRESUPUESTO', y);
+
+    if (presupuestoLibre) {
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...TXTDK);
+      const lineas = doc.splitTextToSize(presupuestoLibre, CW - 6);
+      y = ensureSpace(doc, y, lineas.length * 4 + 4);
+      doc.text(lineas, ML + 3, y + 4);
+      y += lineas.length * 4 + 4;
+    }
 
     const totales = {};
     presupuesto.forEach(it => { totales[it.moneda] = (totales[it.moneda] || 0) + it.monto; });
@@ -338,15 +347,17 @@ export const generarOrdenServicioPDF = async ({ reserva, briefings = [], itinera
         { content: fmtMoneda(total, moneda), styles: { fontStyle: 'bold' } }]);
     });
 
-    autoTable(doc, {
-      startY: y,
-      margin: { left: ML, right: MR },
-      theme: 'grid',
-      styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 2, lineColor: BORDER, lineWidth: 0.2, textColor: TXTDK },
-      columnStyles: { 1: { cellWidth: 30, halign: 'right' } },
-      body,
-    });
-    y = doc.lastAutoTable.finalY + 5;
+    if (body.length) {
+      autoTable(doc, {
+        startY: y,
+        margin: { left: ML, right: MR },
+        theme: 'grid',
+        styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 2, lineColor: BORDER, lineWidth: 0.2, textColor: TXTDK },
+        columnStyles: { 1: { cellWidth: 30, halign: 'right' } },
+        body,
+      });
+      y = doc.lastAutoTable.finalY + 5;
+    }
   }
 
   doc.save(`Orden-Salida-${reserva.codigo_reserva || reserva.id}.pdf`);

@@ -165,9 +165,11 @@ const getById = async (id) => {
     [id]
   );
   const { rows: detalles } = await query(
-    `SELECT d.*, p.nombre AS proveedor_nombre, p.tipo AS proveedor_tipo
+    `SELECT d.*, p.nombre AS proveedor_nombre, p.tipo AS proveedor_tipo,
+            eu.nombre || ' ' || eu.apellido AS estado_actualizado_por_nombre
      FROM cusi.detalles_operacion_proveedor d
-     LEFT JOIN cusi.proveedores p ON p.id = d.proveedor_id
+     LEFT JOIN cusi.proveedores p  ON p.id  = d.proveedor_id
+     LEFT JOIN cusi.usuarios    eu ON eu.id = d.estado_actualizado_por_id
      WHERE d.reserva_id = $1 ORDER BY d.fecha_inicio`,
     [id]
   );
@@ -198,8 +200,8 @@ const create = async (data, userId) => {
           estado_operacion, precio_usd_por_pax, total_usd, adelanto_usd, descuento_usd,
           agencia_nombre, agencia_codigo, operador_nombre,
           usuario_creador_id, usuario_operador_id, usuario_guia_id, observaciones, notas_internas,
-          codigo_reserva)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,'TEMP')
+          presupuesto, codigo_reserva)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,'TEMP')
        RETURNING id`,
       [
         data.servicio_id       || null,
@@ -223,6 +225,7 @@ const create = async (data, userId) => {
         data.usuario_guia_id   || null,
         data.observaciones     || null,
         data.notas_internas    || null,
+        data.presupuesto       || null,
       ]
     );
 

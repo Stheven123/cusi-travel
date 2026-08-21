@@ -8,8 +8,7 @@ const MESES_ES = [
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ];
 
-async function getOperaciones(anio, mes) {
-  const { rows } = await query(`
+const OPERACIONES_SELECT = `
     SELECT
       d.id,
       d.fecha_inicio            AS fecha_servicio,
@@ -32,10 +31,24 @@ async function getOperaciones(anio, mes) {
     LEFT JOIN cusi.reservas              r  ON r.id  = d.reserva_id
     LEFT JOIN cusi.servicios_turisticos  st ON st.id = r.servicio_id
     LEFT JOIN cusi.usuarios              uo ON uo.id = r.usuario_operador_id
+`;
+
+async function getOperaciones(anio, mes) {
+  const { rows } = await query(`
+    ${OPERACIONES_SELECT}
     WHERE EXTRACT(YEAR  FROM d.fecha_inicio) = $1
       AND EXTRACT(MONTH FROM d.fecha_inicio) = $2
     ORDER BY d.fecha_inicio, r.codigo_reserva, d.tipo_servicio
   `, [anio, mes]);
+  return rows;
+}
+
+async function getOperacionesPorReserva(reservaId) {
+  const { rows } = await query(`
+    ${OPERACIONES_SELECT}
+    WHERE d.reserva_id = $1
+    ORDER BY d.fecha_inicio, d.tipo_servicio
+  `, [reservaId]);
   return rows;
 }
 
@@ -63,9 +76,7 @@ function preWhite(ws, maxRow, maxCol) {
       ws.getRow(r).getCell(c).fill = WHITE;
 }
 
-async function generarCierreExcel(anio, mes, agencia = {}) {
-  const ops = await getOperaciones(anio, mes);
-
+async function construirCierreExcel(ops, { periodoLabel, agencia = {} }) {
   const wb = new ExcelJS.Workbook();
   wb.creator = agencia.name || 'Cusi Travel';
   wb.created = wb.modified = new Date();
@@ -133,7 +144,7 @@ async function generarCierreExcel(anio, mes, agencia = {}) {
   ws.getCell('A2').font      = { name: 'Calibri', size: 13, bold: true };
 
   ws.mergeCells('E2:N2');
-  ws.getCell('E2').value     = `Período: ${MESES_ES[mes]} ${anio}`;
+  ws.getCell('E2').value     = periodoLabel;
   ws.getCell('E2').font      = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FF0C2350' } };
   ws.getCell('E2').alignment = { horizontal: 'right' };
   ws.getRow(2).height = 20;
@@ -285,8 +296,23 @@ async function generarCierreExcel(anio, mes, agencia = {}) {
   ws.getCell(`A${cur}`).alignment = { horizontal: 'center' };
   ws.getRow(cur).height = 14;
 
-  const nombreMes = MESES_ES[mes];
-  return { workbook: wb, filename: `Cierre-${nombreMes}-${anio}.xlsx` };
+  return wb;
 }
 
-module.exports = { generarCierreExcel };
+async function generarCierreExcel(anio, mes, agencia = {}) {
+  const ops = await getOperaciones(anio, mes);
+  const nombreMes = MESES_ES[mes];
+  const workbook  = await construirCierreExcel(ops, { periodoLabel: `Período: ${nombreMes} ${anio}`, agencia });
+  return { workbook, filename: `Cierre-${nombreMes}-${anio}.xlsx` };
+}
+
+// Cierre de file de UNA reserva puntual (todas sus operaciones, sin
+// importar el mes en que se prestaron los servicios).
+async function generarCierreExcelPorReserva(reservaId, agencia = {}) {
+  const ops = await getOperacionesPorReserva(reservaId);
+  const codigo = ops[0]?.codigo_reserva || `Reserva-${reservaId}`;
+  const workbook = await construirCierreExcel(ops, { periodoLabel: `Reserva: ${codigo}`, agencia });
+  return { workbook, filename: `Cierre-${codigo}.xlsx` };
+}
+
+module.exports = { generarCierreExcel, generarCierreExcelPorReserva };

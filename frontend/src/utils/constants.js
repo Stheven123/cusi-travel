@@ -19,6 +19,30 @@ export const TIPOS_PROVEEDOR = [
   'HOTEL','TRANSPORTE','RESTAURANTE','GUIA','AEROLINEA','TREN','OPERADOR_LOCAL','SEGURO','ACTIVIDAD','COCINERO','PORTER','OTRO',
 ];
 
+// Estados posibles de una operación (detalles_operacion_proveedor.estado).
+// Única fuente de verdad — se usa tanto en el formulario de la reserva como
+// en el filtro del motor de reportes, para que ambos queden siempre en sync
+// con el enum real de la base de datos (estado_detalle_proveedor).
+export const ESTADOS_DETALLE_OPERACION = [
+  { value: 'PENDIENTE',      label: 'Pendiente'      },
+  { value: 'SOLICITADO',     label: 'Solicitado'     },
+  { value: 'RESERVADO',      label: 'Reservado'      },
+  { value: 'PAGADO',         label: 'Pagado'         },
+  { value: 'CONFIRMADO',     label: 'Confirmado'     },
+  { value: 'RECONFIRMADO',   label: 'Reconfirmado'   },
+  { value: 'EMITIDO',        label: 'Emitido'        },
+  { value: 'ANULADO',        label: 'Anulado'        },
+  { value: 'FACTURADO',      label: 'Facturado'      },
+  { value: 'COMPLETADO',     label: 'Completado'     },
+  { value: 'CANCELADO',      label: 'Cancelado'      },
+  { value: 'PENDIENTE_PAGO', label: 'Pendiente pago' },
+];
+
+// Tipos de documento que puede sustentar una operación (comprobante del proveedor)
+export const TIPOS_DOCUMENTO = [
+  'FACTURA', 'BOLETA', 'RECIBO POR HONORARIOS', 'VOUCHER', 'GUIA DE REMISION', 'NOTA DE CREDITO', 'OTRO',
+];
+
 export const TIPOS_SERVICIO = [
   { value: 'TREK',             label: 'Trekking' },
   { value: 'DAY_TOUR',         label: 'Tour 1 día' },

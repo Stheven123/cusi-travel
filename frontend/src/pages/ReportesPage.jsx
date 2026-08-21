@@ -15,7 +15,7 @@ const LABELS = {
   servicio_nombre:'Servicio', fecha_inicio:'Fecha inicio', fecha_fin:'Fecha fin',
   reserva_fecha_inicio:'Fecha inicio', reserva_fecha_fin:'Fecha fin',
   n_pasajeros:'Pax', operador_nombre:'Operador', descripcion_detalle:'Descripción',
-  descripcion:'Descripción',
+  descripcion:'Descripción', servicio_descripcion:'Descripción',
   cantidad:'Cantidad', costo_unitario_usd:'Costo unit.', costo_total_usd:'Costo total',
   estado_detalle:'Estado', detalle_estado:'Estado', confirmacion_ref:'Confirmación',
   estado_operacion:'Estado op.', reserva_estado:'Estado reserva',

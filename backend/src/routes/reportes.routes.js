@@ -16,5 +16,7 @@ router.get('/proximas',                      ctrl.proximas);
 router.post('/invoice/:reservaId',           ctrl.generarInvoice);
 // Cierre de file mensual (POST para enviar datos de agencia en body)
 router.post('/cierre',                       requireRoles(...ROLES.MANAGEMENT), ctrl.generarCierre);
+// Cierre de file de una reserva puntual
+router.post('/cierre/reserva/:reservaId',    requireRoles(...ROLES.MANAGEMENT), ctrl.generarCierreReserva);
 
 module.exports = router;

@@ -33,6 +33,10 @@ const detalleSchemaBase = z.object({
   estado:              z.enum(['PENDIENTE','SOLICITADO','RESERVADO','PAGADO','CONFIRMADO','RECONFIRMADO','EMITIDO','ANULADO','FACTURADO','COMPLETADO','CANCELADO','PENDIENTE_PAGO']).default('PENDIENTE'),
   confirmacion_ref:    z.string().max(100).optional().or(z.literal('')).nullable(),
   notas:               z.string().optional().or(z.literal('')).nullable(),
+  tipo_documento:      z.string().max(40).optional().or(z.literal('')).nullable(),
+  serie_documento:     z.string().max(20).optional().or(z.literal('')).nullable(),
+  numero_documento:    z.string().max(30).optional().or(z.literal('')).nullable(),
+  enlace_drive:        z.string().max(500).optional().or(z.literal('')).nullable(),
 });
 
 const withFechaCheck = (schema) => schema.refine(
@@ -122,7 +126,7 @@ const CHECKLIST_GUIA = [
 const createDetalle = async (req, res, next) => {
   try {
     const body = detalleSchema.parse(req.body);
-    const data = await service.createDetalle(body);
+    const data = await service.createDetalle(body, req.user.id);
     if (body.tipo_servicio === 'GUIA') {
       await service.createTareasOperacionBulk(
         data.id,
@@ -136,7 +140,7 @@ const createDetalle = async (req, res, next) => {
 const updateDetalle = async (req, res, next) => {
   try {
     const body = withFechaCheck(detalleSchemaBase.partial()).parse(req.body);
-    const data = await service.updateDetalle(Number(req.params.detalleId), body);
+    const data = await service.updateDetalle(Number(req.params.detalleId), body, req.user.id);
     res.json({ ok: true, data });
   } catch (err) { next(err); }
 };
@@ -151,6 +155,14 @@ const deleteDetalle = async (req, res, next) => {
 const getTareasOperacion = async (req, res, next) => {
   try {
     const data = await service.getTareasByDetalle(Number(req.params.detalleId));
+    res.json({ ok: true, data });
+  } catch (err) { next(err); }
+};
+
+// Todas las tareas de checklist de operaciones (vista consolidada para el módulo de Tareas)
+const getAllTareasOperacion = async (req, res, next) => {
+  try {
+    const data = await service.getAllTareasOperacion(req.query);
     res.json({ ok: true, data });
   } catch (err) { next(err); }
 };
@@ -180,5 +192,5 @@ const deleteTareaOperacion = async (req, res, next) => {
 
 module.exports = {
   getAll, getById, create, update, remove, getDetallesByReserva, getAllDetalles, createDetalle, updateDetalle, deleteDetalle,
-  getTareasOperacion, createTareaOperacion, updateTareaOperacion, deleteTareaOperacion,
+  getTareasOperacion, getAllTareasOperacion, createTareaOperacion, updateTareaOperacion, deleteTareaOperacion,
 };

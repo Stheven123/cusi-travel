@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Filter, Printer } from 'lucide-react';
-import { TIPOS_PROVEEDOR } from '../../utils/constants';
+import { TIPOS_PROVEEDOR, ESTADOS_DETALLE_OPERACION } from '../../utils/constants';
 import { proveedoresApi } from '../../api/proveedores.api';
 import { reportesApi } from '../../api/reportes.api';
 import Spinner from '../ui/Spinner';
@@ -18,7 +18,7 @@ const CAMPOS_DISPONIBLES = [
   { key: 'proveedor_nombre',    label: 'Proveedor' },
   { key: 'tipo_servicio',       label: 'Tipo servicio' },
   { key: 'fecha_inicio',        label: 'Fecha servicio' },
-  { key: 'descripcion',         label: 'Descripción' },
+  { key: 'servicio_descripcion',label: 'Descripción' },
   { key: 'cantidad',            label: 'Cantidad' },
   { key: 'costo_unitario_usd',  label: 'Costo unit.' },
   { key: 'costo_total_usd',     label: 'Costo total' },
@@ -106,8 +106,8 @@ export default function FiltrosReporte({ onResultados }) {
           <label className="label">Estado detalle</label>
           <select value={filtros.estado} onChange={e => set('estado', e.target.value)} className="input-field">
             <option value="">— Todos —</option>
-            {['SOLICITADO','CONFIRMADO','COMPLETADO','CANCELADO','PENDIENTE_PAGO'].map(s =>
-              <option key={s} value={s}>{s}</option>
+            {ESTADOS_DETALLE_OPERACION.map(s =>
+              <option key={s.value} value={s.value}>{s.label}</option>
             )}
           </select>
         </div>

@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, CheckCircle2, Clock, AlertTriangle, User, Search, X, ChevronDown } from "lucide-react";
+import { Plus, CheckCircle2, Clock, AlertTriangle, User, Search, X, ChevronDown, ClipboardList, Circle } from "lucide-react";
 import { tareasApi } from "../api/tareas.api";
 import { usuariosApi } from "../api/usuarios.api";
+import { proveedoresApi } from "../api/proveedores.api";
 import { PrioridadBadge, EstadoTareaBadge } from "../components/ui/Badge";
 import { PageLoader } from "../components/ui/Spinner";
 import Modal from "../components/ui/Modal";
 import Alert from "../components/ui/Alert";
-import { fmtFecha } from "../utils/formatters";
+import { fmtFecha, fmtMoneda } from "../utils/formatters";
 import { PRIORIDADES_TAREA, ESTADOS_TAREA } from "../utils/constants";
 
 const EMPTY = {
@@ -224,6 +225,109 @@ function TareaCard({ t, hoy, onCompletar, onEditar }) {
   );
 }
 
+/* ── Tareas de operaciones (checklist por operación de proveedor) ─── */
+function TareaOperacionRow({ t, onToggle, navigate }) {
+  return (
+    <div className={`flex items-center gap-3 py-3 px-4 rounded-2xl relative overflow-hidden ${t.completada ? 'opacity-55' : ''}`}
+      style={{ background: 'var(--card)', boxShadow: 'var(--shadow-sm)' }}>
+      <button onClick={() => onToggle(t)} className="flex-shrink-0 cursor-pointer"
+        style={{ color: t.completada ? '#10b981' : 'var(--text-3)' }} title="Marcar completada">
+        {t.completada ? <CheckCircle2 size={20} /> : <Circle size={20} />}
+      </button>
+      <div className="flex-1 min-w-0">
+        <p className={`font-semibold text-sm ${t.completada ? 'line-through' : ''}`} style={{ color: 'var(--text)' }}>{t.titulo}</p>
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs" style={{ color: 'var(--text-2)' }}>
+          {t.codigo_reserva && (
+            <button onClick={() => navigate(`/reservas/${t.reserva_id}`)}
+              className="font-mono font-medium hover:underline cursor-pointer" style={{ color: 'var(--brand)' }}>
+              {t.codigo_reserva}
+            </button>
+          )}
+          {t.tipo_servicio && <span>{t.tipo_servicio}</span>}
+          {t.proveedor_nombre && <span>{t.proveedor_nombre}</span>}
+          {t.persona_encargada && <span className="flex items-center gap-1"><User size={10} />{t.persona_encargada}</span>}
+          {t.fecha && <span className="flex items-center gap-1"><Clock size={10} />{fmtFecha(t.fecha)}</span>}
+        </div>
+      </div>
+      {t.monto != null && (
+        <span className="text-sm font-bold flex-shrink-0" style={{ color: 'var(--text)' }}>{fmtMoneda(t.monto)}</span>
+      )}
+    </div>
+  );
+}
+
+function TareasOperacionSection() {
+  const [tareas, setTareas] = useState(null);
+  const [error, setError]   = useState('');
+  const navigate = useNavigate();
+
+  const load = useCallback(async () => {
+    try { const r = await proveedoresApi.getAllTareasOperacion(); setTareas(r.data || []); }
+    catch { setError('No se pudieron cargar las tareas de operaciones'); }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const toggle = async (t) => {
+    setTareas(prev => prev.map(x => x.id === t.id ? { ...x, completada: !t.completada } : x));
+    try { await proveedoresApi.updateTareaOperacion(t.id, { completada: !t.completada }); }
+    catch { load(); }
+  };
+
+  if (tareas === null) return <PageLoader />;
+
+  const pendientes = tareas.filter(t => !t.completada);
+  const completadas = tareas.filter(t => t.completada);
+
+  return (
+    <div className="space-y-6">
+      {error && <Alert type="error" message={error} onClose={() => setError('')} />}
+      <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+        Checklist de tareas de cada operación (hoteles, guías, transportes...) de todas las reservas.
+      </p>
+      {tareas.length === 0 ? (
+        <div className="text-center py-16" style={{ color: 'var(--text-2)' }}>
+          <ClipboardList size={40} className="mx-auto mb-3" style={{ color: 'var(--text-3)' }} />
+          <p>No hay tareas de operaciones registradas</p>
+        </div>
+      ) : (
+        <>
+          {pendientes.length > 0 && (
+            <div>
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: '#f59e0b' }} />
+                <p className="text-sm font-black uppercase tracking-widest" style={{ color: 'var(--text-2)' }}>Pendientes</p>
+                <span className="text-xs md:text-sm px-2.5 py-0.5 rounded-full font-semibold" style={{ background: '#f59e0b22', color: '#f59e0b' }}>
+                  {pendientes.length}
+                </span>
+                <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+              </div>
+              <div className="space-y-2.5">
+                {pendientes.map(t => <TareaOperacionRow key={t.id} t={t} onToggle={toggle} navigate={navigate} />)}
+              </div>
+            </div>
+          )}
+          {completadas.length > 0 && (
+            <div>
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: '#10b981' }} />
+                <p className="text-sm font-black uppercase tracking-widest" style={{ color: 'var(--text-2)' }}>Completadas</p>
+                <span className="text-xs md:text-sm px-2.5 py-0.5 rounded-full font-semibold" style={{ background: '#10b98122', color: '#10b981' }}>
+                  {completadas.length}
+                </span>
+                <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+              </div>
+              <div className="space-y-2.5">
+                {completadas.map(t => <TareaOperacionRow key={t.id} t={t} onToggle={toggle} navigate={navigate} />)}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 /* ── Page ──────────────────────────────────────────────────── */
 export default function TareasPage() {
   const [tareas, setTareas]      = useState([]);
@@ -241,6 +345,7 @@ export default function TareasPage() {
     fecha_desde: "", fecha_hasta: "", busqueda: "",
   });
   const [mobileTab, setMobileTab]= useState("PENDIENTE");
+  const [vista, setVista]        = useState("generales");
 
   const setF = (k, v) => setFiltros(p => ({ ...p, [k]: v }));
 
@@ -301,6 +406,27 @@ export default function TareasPage() {
       {error   && <Alert type="error"   message={error}   onClose={() => setError("")} />}
       {success && <Alert type="success" message={success} onClose={() => setSuccess("")} />}
 
+      {/* ── Pestañas: generales / operaciones ─── */}
+      <div className="flex gap-1 p-1 rounded-xl w-fit"
+        style={{ background: 'var(--card-2)', border: '1px solid var(--border)' }}>
+        {[
+          { key: 'generales',   label: 'Generales',   icon: CheckCircle2 },
+          { key: 'operaciones', label: 'Operaciones',  icon: ClipboardList },
+        ].map(({ key, label, icon: Icon }) => (
+          <button key={key} onClick={() => setVista(key)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all cursor-pointer"
+            style={vista === key
+              ? { background: 'var(--brand)', color: 'white', boxShadow: 'var(--shadow-sm)' }
+              : { color: 'var(--text-2)' }}>
+            <Icon size={15} /> {label}
+          </button>
+        ))}
+      </div>
+
+      {vista === 'operaciones' && <TareasOperacionSection />}
+
+      {vista === 'generales' && (
+      <>
       {/* ── Barra superior ─── */}
       <div className="flex flex-wrap gap-3 items-center">
         {/* Búsqueda */}
@@ -452,6 +578,8 @@ export default function TareasPage() {
             )}
           </div>
         </>
+      )}
+      </>
       )}
 
       {/* ── Modal nueva/editar tarea ── */}

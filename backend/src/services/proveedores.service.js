@@ -88,9 +88,11 @@ const remove = async (id) => {
 const getDetallesByReserva = async (reservaId) => {
   const { rows } = await query(
     `SELECT d.*, p.nombre AS proveedor_nombre, p.tipo AS proveedor_tipo,
-            p.contacto_telefono AS proveedor_telefono
+            p.contacto_telefono AS proveedor_telefono,
+            eu.nombre || ' ' || eu.apellido AS estado_actualizado_por_nombre
      FROM cusi.detalles_operacion_proveedor d
      LEFT JOIN cusi.proveedores p ON p.id = d.proveedor_id
+     LEFT JOIN cusi.usuarios    eu ON eu.id = d.estado_actualizado_por_id
      WHERE d.reserva_id = $1
      ORDER BY d.fecha_inicio`,
     [reservaId]
@@ -98,13 +100,15 @@ const getDetallesByReserva = async (reservaId) => {
   return rows;
 };
 
-const createDetalle = async (data) => {
+const createDetalle = async (data, userId) => {
   const { rows } = await query(
     `INSERT INTO cusi.detalles_operacion_proveedor
        (reserva_id, proveedor_id, tipo_servicio, descripcion,
         fecha_inicio, fecha_fin, hora_inicio, cantidad,
-        costo_unitario_usd, moneda, estado, confirmacion_ref, notas)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+        costo_unitario_usd, moneda, estado, confirmacion_ref, notas,
+        tipo_documento, serie_documento, numero_documento, enlace_drive,
+        estado_actualizado_por_id, estado_actualizado_en)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW())
      RETURNING *`,
     [
       data.reserva_id, data.proveedor_id || null, data.tipo_servicio,
@@ -118,18 +122,37 @@ const createDetalle = async (data) => {
       data.estado,
       data.confirmacion_ref || null,
       data.notas            || null,
+      data.tipo_documento   || null,
+      data.serie_documento  || null,
+      data.numero_documento || null,
+      data.enlace_drive     || null,
+      userId                || null,
     ]
   );
   return rows[0];
 };
 
-const updateDetalle = async (detalleId, data) => {
-  const campos  = Object.keys(data);
-  if (!campos.length) throw new AppError('Sin datos para actualizar', 400, 'EMPTY_UPDATE');
+const updateDetalle = async (detalleId, data, userId) => {
+  const campos  = { ...data };
+  if (!Object.keys(campos).length) throw new AppError('Sin datos para actualizar', 400, 'EMPTY_UPDATE');
 
+  // Si el estado cambia, se registra quién y cuándo lo modificó.
+  if (Object.prototype.hasOwnProperty.call(campos, 'estado')) {
+    const { rows: cur } = await query(
+      'SELECT estado FROM cusi.detalles_operacion_proveedor WHERE id = $1',
+      [detalleId]
+    );
+    if (!cur.length) throw new AppError('Detalle de operación no encontrado', 404, 'NOT_FOUND');
+    if (cur[0].estado !== campos.estado) {
+      campos.estado_actualizado_por_id = userId || null;
+      campos.estado_actualizado_en     = new Date();
+    }
+  }
+
+  const keys   = Object.keys(campos);
   const norm   = v => (v === '' ? null : v);
-  const sets   = campos.map((k, i) => `${k} = $${i + 2}`);
-  const values = campos.map(k => norm(data[k]));
+  const sets   = keys.map((k, i) => `${k} = $${i + 2}`);
+  const values = keys.map(k => norm(campos[k]));
 
   const { rows } = await query(
     `UPDATE cusi.detalles_operacion_proveedor SET ${sets.join(', ')} WHERE id = $1 RETURNING *`,
@@ -163,10 +186,12 @@ const getAllDetalles = async (filters = {}) => {
     `SELECT d.*,
             p.nombre AS proveedor_nombre, p.tipo AS proveedor_tipo,
             p.contacto_telefono AS proveedor_telefono,
+            eu.nombre || ' ' || eu.apellido AS estado_actualizado_por_nombre,
             r.codigo_reserva, r.nombre_servicio_snap,
             r.agencia_nombre, r.estado_operacion AS reserva_estado
      FROM cusi.detalles_operacion_proveedor d
-     LEFT JOIN cusi.proveedores p ON p.id = d.proveedor_id
+     LEFT JOIN cusi.proveedores p  ON p.id  = d.proveedor_id
+     LEFT JOIN cusi.usuarios    eu ON eu.id = d.estado_actualizado_por_id
      JOIN cusi.reservas    r ON r.id = d.reserva_id
      ${where}
      ORDER BY d.fecha_inicio DESC, d.id DESC
@@ -237,7 +262,39 @@ const deleteTareaOperacion = async (tareaId) => {
   if (!rowCount) throw new AppError('Tarea de operación no encontrada', 404, 'NOT_FOUND');
 };
 
+// Vista consolidada de TODAS las tareas de checklist de operaciones, con el
+// contexto de su reserva/proveedor — usada por el módulo de Tareas para que
+// el checklist operativo no quede aislado dentro de cada operación.
+const getAllTareasOperacion = async (filters = {}) => {
+  const conds  = ['1=1'];
+  const values = [];
+  let   idx    = 1;
+
+  if (filters.completada !== undefined) {
+    conds.push(`t.completada = $${idx++}`);
+    values.push(filters.completada === 'true' || filters.completada === true);
+  }
+  if (filters.reserva_id) { conds.push(`d.reserva_id = $${idx++}`); values.push(Number(filters.reserva_id)); }
+
+  const { rows } = await query(
+    `SELECT t.*,
+            d.reserva_id, d.tipo_servicio, d.proveedor_id,
+            p.nombre AS proveedor_nombre,
+            r.codigo_reserva, r.agencia_nombre
+     FROM cusi.tareas_operacion t
+     JOIN cusi.detalles_operacion_proveedor d ON d.id = t.detalle_id
+     LEFT JOIN cusi.proveedores p ON p.id = d.proveedor_id
+     JOIN cusi.reservas r ON r.id = d.reserva_id
+     WHERE ${conds.join(' AND ')}
+     ORDER BY t.completada, t.fecha NULLS LAST, t.id DESC
+     LIMIT 500`,
+    values
+  );
+  return rows;
+};
+
 module.exports = {
   getAll, getById, create, update, remove, getDetallesByReserva, getAllDetalles, createDetalle, updateDetalle, deleteDetalle,
   getTareasByDetalle, createTareaOperacion, createTareasOperacionBulk, updateTareaOperacion, deleteTareaOperacion,
+  getAllTareasOperacion,
 };

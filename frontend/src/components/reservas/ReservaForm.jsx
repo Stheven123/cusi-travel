@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   CalendarDays, Clock, MapPin, Users, Globe, TrendingUp,
-  Building2, FileText, Lock, DollarSign, Package,
+  Building2, FileText, Lock, DollarSign, Package, Wallet,
 } from 'lucide-react';
 import { ESTADOS_OPERACION, IDIOMAS } from '../../utils/constants';
 import { serviciosApi } from '../../api/servicios.api';
@@ -24,6 +24,7 @@ const EMPTY = {
   agencia_nombre: '', agencia_codigo: '', operador_nombre: '',
   usuario_guia_id: '',
   observaciones: '',
+  presupuesto: '',
 };
 
 /* ── Sección con encabezado visual ── */
@@ -368,6 +369,22 @@ export default function ReservaForm({ inicial, onSave, onCancel }) {
           style={{ overflow: 'hidden', minHeight: '100px' }}
           placeholder="Requerimientos especiales, notas del tour, observaciones del equipo..."
         />
+        <p className="text-xs" style={{ color: 'var(--text-3)' }}>Estas notas se incluyen en la Orden de servicio.</p>
+      </Section>
+
+      {/* ── Presupuesto ── */}
+      <Section icon={Wallet} title="Presupuesto" color="#059669">
+        <textarea
+          rows={4}
+          value={form.presupuesto}
+          onChange={e => set('presupuesto', e.target.value)}
+          className="input-field resize-none"
+          style={{ minHeight: '100px' }}
+          placeholder="Desglose de presupuesto, costos estimados, notas para finanzas..."
+        />
+        <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+          Lo que anotes aquí se guarda en la reserva y aparece en la Orden de servicio.
+        </p>
       </Section>
 
       {/* ── Acciones ── */}

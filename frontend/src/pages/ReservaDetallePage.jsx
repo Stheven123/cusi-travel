@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Edit2, Trash2, Plus, UserPlus, MapPin, Users,
   Calendar, DollarSign, CheckCircle2, Clock,
-  ChevronDown, ClipboardList, FileText, X, Download,
+  ChevronDown, ClipboardList, FileText, X, Download, FolderOpen,
+  Link as LinkIcon, User,
 } from 'lucide-react';
 import { reservasApi } from '../api/reservas.api';
 import { pasajerosApi } from '../api/pasajeros.api';
@@ -20,9 +21,9 @@ import Modal from '../components/ui/Modal';
 import Alert from '../components/ui/Alert';
 import ReservaForm from '../components/reservas/ReservaForm';
 import PasajeroForm from '../components/reservas/PasajeroForm';
-import { fmtFecha, fmtMoneda } from '../utils/formatters';
+import { fmtFecha, fmtFechaHora, fmtMoneda } from '../utils/formatters';
 import { generarOrdenServicioPDF } from '../utils/ordenServicioPDF';
-import { ESTADOS_OPERACION } from '../utils/constants';
+import { ESTADOS_OPERACION, ESTADOS_DETALLE_OPERACION, TIPOS_DOCUMENTO } from '../utils/constants';
 
 const TABS = ['Info', 'Pasajeros', 'Operaciones', 'Tareas', 'Briefings'];
 
@@ -41,20 +42,7 @@ const ESTADO_DETALLE_CLR = {
   PENDIENTE_PAGO: '#d97706',
 };
 
-const ESTADOS_DETALLE = [
-  { value: 'PENDIENTE',     label: 'Pendiente'     },
-  { value: 'SOLICITADO',    label: 'Solicitado'    },
-  { value: 'RESERVADO',     label: 'Reservado'     },
-  { value: 'PAGADO',        label: 'Pagado'        },
-  { value: 'CONFIRMADO',    label: 'Confirmado'    },
-  { value: 'RECONFIRMADO',  label: 'Reconfirmado'  },
-  { value: 'EMITIDO',       label: 'Emitido'       },
-  { value: 'ANULADO',       label: 'Anulado'       },
-  { value: 'FACTURADO',     label: 'Facturado'     },
-  { value: 'COMPLETADO',    label: 'Completado'    },
-  { value: 'CANCELADO',     label: 'Cancelado'     },
-  { value: 'PENDIENTE_PAGO',label: 'Pendiente pago'},
-];
+const ESTADOS_DETALLE = ESTADOS_DETALLE_OPERACION;
 
 const TIPOS_SERVICIO_OP = ['HOTEL','TRANSPORTE','RESTAURANTE','GUIA','AEROLINEA','TREN','OPERADOR_LOCAL','SEGURO','ACTIVIDAD','COCINERO','PORTER','OTRO'];
 const TIPOS_OPERACION = [...TIPOS_SERVICIO_OP, 'INGRESOS'];
@@ -324,6 +312,28 @@ function OperacionRow({ d, onEdit, onDelete }) {
             {d.descripcion  && <span className="truncate max-w-[200px]">{d.descripcion}</span>}
             {d.confirmacion_ref && <span className="font-mono">{d.confirmacion_ref}</span>}
           </div>
+          {(d.tipo_documento || d.serie_documento || d.numero_documento || d.enlace_drive) && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
+              {d.tipo_documento && (
+                <span className="font-medium">
+                  {d.tipo_documento}{(d.serie_documento || d.numero_documento) ? ` ${d.serie_documento || ''}${d.serie_documento && d.numero_documento ? '-' : ''}${d.numero_documento || ''}` : ''}
+                </span>
+              )}
+              {d.enlace_drive && (
+                <a href={d.enlace_drive} target="_blank" rel="noreferrer"
+                  onClick={e => e.stopPropagation()}
+                  className="flex items-center gap-1 font-semibold hover:underline" style={{ color: 'var(--brand)' }}>
+                  <LinkIcon size={11} /> Drive
+                </a>
+              )}
+            </div>
+          )}
+          {d.estado_actualizado_por_nombre && (
+            <div className="flex items-center gap-1 mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
+              <User size={10} />
+              Estado modificado por {d.estado_actualizado_por_nombre}{d.estado_actualizado_en ? ` · ${fmtFechaHora(d.estado_actualizado_en)}` : ''}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <div className="text-right">
@@ -385,6 +395,7 @@ const DETALLE_EMPTY = {
   proveedor_id: '', tipo_servicio: '', fecha_inicio: '', fecha_fin: '',
   descripcion: '', cantidad: 1, costo_unitario_usd: '', moneda: 'USD',
   estado: 'PENDIENTE', notas: '',
+  tipo_documento: '', serie_documento: '', numero_documento: '', enlace_drive: '',
 };
 
 function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
@@ -397,18 +408,19 @@ function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
   });
   const [err, setErr]       = useState('');
   const [saving, setSaving] = useState(false);
-  const [tipoProveedor, setTipoProveedor] = useState('');
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
   const esIngreso = f.tipo_servicio === 'INGRESOS';
-  const proveedoresFiltrados = tipoProveedor
-    ? proveedores.filter(p => p.tipo === tipoProveedor)
+  // El tipo de operación YA filtra el proveedor — no hace falta un segundo
+  // selector de "tipo de proveedor" que duplicaba el mismo dato.
+  const proveedoresFiltrados = f.tipo_servicio
+    ? proveedores.filter(p => p.tipo === f.tipo_servicio)
     : proveedores;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErr('');
     if (!esIngreso && !f.proveedor_id) return setErr('Selecciona un proveedor');
-    if (!f.tipo_servicio) return setErr('Selecciona el tipo de servicio');
+    if (!f.tipo_servicio) return setErr('Selecciona el tipo de operación');
     if (!f.fecha_inicio)  return setErr('Ingresa la fecha de inicio');
     if (f.fecha_fin && f.fecha_fin < f.fecha_inicio) return setErr('La fecha fin no puede ser anterior a la fecha inicio');
     setSaving(true);
@@ -425,6 +437,10 @@ function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
         moneda:             f.moneda,
         notas:              f.notas        || undefined,
         estado:             f.estado,
+        tipo_documento:     f.tipo_documento   || undefined,
+        serie_documento:    f.serie_documento  || undefined,
+        numero_documento:   f.numero_documento || undefined,
+        enlace_drive:       f.enlace_drive     || undefined,
       });
     } catch (e) {
       setErr(e?.error || e?.message || 'Error al guardar la operación');
@@ -442,7 +458,8 @@ function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label">Tipo de operación <span style={{ color: '#ef4444' }}>*</span></label>
-          <select className="input-field" value={f.tipo_servicio} onChange={e => set('tipo_servicio', e.target.value)} required>
+          <select className="input-field" value={f.tipo_servicio}
+            onChange={e => set('tipo_servicio', e.target.value)} required>
             <option value="">— Selecciona —</option>
             {TIPOS_OPERACION.map(t => <option key={t} value={t}>{t === 'INGRESOS' ? 'INGRESOS (sin proveedor)' : t}</option>)}
           </select>
@@ -463,23 +480,15 @@ function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
           </select>
         </div>
       ) : (
-        <>
-          <div>
-            <label className="label">Tipo de proveedor (filtro)</label>
-            <select className="input-field" value={tipoProveedor}
-              onChange={e => { setTipoProveedor(e.target.value); set('proveedor_id', ''); }}>
-              <option value="">— Todos los tipos —</option>
-              {TIPOS_SERVICIO_OP.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="label">Proveedor <span style={{ color: '#ef4444' }}>*</span></label>
-            <select className="input-field" value={f.proveedor_id} onChange={e => set('proveedor_id', e.target.value)} required>
-              <option value="">— Selecciona un proveedor —</option>
-              {proveedoresFiltrados.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-            </select>
-          </div>
-        </>
+        <div>
+          <label className="label">Proveedor <span style={{ color: '#ef4444' }}>*</span></label>
+          <select className="input-field" value={f.proveedor_id} onChange={e => set('proveedor_id', e.target.value)} required>
+            <option value="">
+              {f.tipo_servicio ? `— Selecciona un proveedor de tipo ${f.tipo_servicio} —` : '— Selecciona primero el tipo de operación —'}
+            </option>
+            {proveedoresFiltrados.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+          </select>
+        </div>
       )}
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -521,6 +530,33 @@ function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
         <label className="label">Notas internas</label>
         <textarea rows={2} className="input-field resize-none" value={f.notas}
           onChange={e => set('notas', e.target.value)} placeholder="Notas para el equipo..." />
+      </div>
+      <div className="pt-2 space-y-3" style={{ borderTop: '1px dashed var(--border)' }}>
+        <p className="label">Documento sustentatorio</p>
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <label className="label">Tipo de documento</label>
+            <select className="input-field" value={f.tipo_documento} onChange={e => set('tipo_documento', e.target.value)}>
+              <option value="">— Ninguno —</option>
+              {TIPOS_DOCUMENTO.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">Serie</label>
+            <input className="input-field" value={f.serie_documento}
+              onChange={e => set('serie_documento', e.target.value)} placeholder="F001" />
+          </div>
+          <div>
+            <label className="label">Número</label>
+            <input className="input-field" value={f.numero_documento}
+              onChange={e => set('numero_documento', e.target.value)} placeholder="00012345" />
+          </div>
+        </div>
+        <div>
+          <label className="label">Enlace de Google Drive</label>
+          <input type="url" className="input-field" value={f.enlace_drive}
+            onChange={e => set('enlace_drive', e.target.value)} placeholder="https://drive.google.com/..." />
+        </div>
       </div>
       <div className="flex gap-3 justify-end pt-2" style={{ borderTop: '1px solid var(--border)' }}>
         <button type="button" onClick={onCancel} className="btn-secondary" disabled={saving}>Cancelar</button>
@@ -785,6 +821,19 @@ export default function ReservaDetallePage() {
     }
   };
 
+  const handleGenerarCierre = async () => {
+    try {
+      const blob = await reportesApi.generarCierreReserva(reserva.id);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `Cierre-${reserva.codigo_reserva}.xlsx`;
+      document.body.appendChild(a); a.click(); a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      setError('No se pudo generar el cierre de file');
+    }
+  };
+
   const handleGenerarInvoice = async () => {
     try {
       const lineItems = [
@@ -890,6 +939,12 @@ export default function ReservaDetallePage() {
                 style={{ background: 'rgba(255,255,255,0.18)', color: 'white' }}
                 title="Descarga el invoice en Excel, incluyendo los servicios adicionales">
                 <Download size={14} /> Invoice
+              </button>
+              <button onClick={handleGenerarCierre}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold cursor-pointer transition-all"
+                style={{ background: 'rgba(255,255,255,0.18)', color: 'white' }}
+                title="Descarga el cierre de file de esta reserva en Excel">
+                <FolderOpen size={14} /> Cierre de file
               </button>
               <button onClick={() => setEditModal(true)}
                 className="p-2 rounded-xl cursor-pointer transition-all"
@@ -1004,8 +1059,15 @@ export default function ReservaDetallePage() {
           {reserva.observaciones && (
             <div className="col-span-2 sm:col-span-3 lg:col-span-4 rounded-2xl p-4"
               style={{ background: 'var(--card)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
-              <p className="text-xs font-bold uppercase tracking-wide mb-1" style={{ color: 'var(--text-3)' }}>Observaciones</p>
-              <p className="text-sm leading-relaxed" style={{ color: 'var(--text)' }}>{reserva.observaciones}</p>
+              <p className="text-xs font-bold uppercase tracking-wide mb-1" style={{ color: 'var(--text-3)' }}>Notas</p>
+              <p className="text-sm leading-relaxed whitespace-pre-line" style={{ color: 'var(--text)' }}>{reserva.observaciones}</p>
+            </div>
+          )}
+          {reserva.presupuesto && (
+            <div className="col-span-2 sm:col-span-3 lg:col-span-4 rounded-2xl p-4"
+              style={{ background: 'var(--card)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
+              <p className="text-xs font-bold uppercase tracking-wide mb-1" style={{ color: 'var(--text-3)' }}>Presupuesto</p>
+              <p className="text-sm leading-relaxed whitespace-pre-line" style={{ color: 'var(--text)' }}>{reserva.presupuesto}</p>
             </div>
           )}
           {reserva.servicios_adicionales?.length > 0 && (

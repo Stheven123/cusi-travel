@@ -15,6 +15,13 @@ export const fmtFecha = (iso) => {
   return new Date(iso).toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 };
 
+export const fmtFechaHora = (iso) => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d)) return '—';
+  return d.toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+
 export const fmtFechaCorta = (iso) => {
   if (!iso) return '—';
   const p = parseDateOnly(iso);

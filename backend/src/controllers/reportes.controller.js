@@ -84,4 +84,20 @@ const generarCierre = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-module.exports = { getKPIs, reporteProveedores, resumenMensual, proximas, generarInvoice, generarCierre };
+const generarCierreReserva = async (req, res, next) => {
+  try {
+    const reservaId = Number(req.params.reservaId);
+    if (!Number.isInteger(reservaId) || reservaId < 1) {
+      return res.status(400).json({ ok: false, error: 'reservaId invalido' });
+    }
+    const agencia = req.body?.agencia || {};
+
+    const { workbook, filename } = await cierreService.generarCierreExcelPorReserva(reservaId, agencia);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (err) { next(err); }
+};
+
+module.exports = { getKPIs, reporteProveedores, resumenMensual, proximas, generarInvoice, generarCierre, generarCierreReserva };
