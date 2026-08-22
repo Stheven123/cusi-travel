@@ -12,10 +12,10 @@ import { fmtMoneda, fmtFecha } from '../utils/formatters';
 function FinKpiCard({ label, value, icon: Icon, color, sub, warn }) {
   const clr = warn ? '#ef4444' : (color || 'var(--brand)');
   return (
-    <div className="rounded-2xl p-5 md:p-8 flex flex-col gap-3 md:gap-4"
+    <div className="rounded-2xl p-5 md:p-8 flex flex-col gap-3 md:gap-4 overflow-hidden"
       style={{ background: 'var(--card)', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border)' }}>
       <div className="flex items-start justify-between gap-2">
-        <p className="text-xs md:text-sm font-bold uppercase tracking-wider leading-tight" style={{ color: 'var(--text-2)' }}>
+        <p className="text-xs md:text-sm font-bold uppercase tracking-wider leading-tight min-w-0" style={{ color: 'var(--text-2)' }}>
           {label}
         </p>
         <div className="w-9 h-9 md:w-12 md:h-12 rounded-xl md:rounded-2xl flex items-center justify-center flex-shrink-0"
@@ -24,7 +24,7 @@ function FinKpiCard({ label, value, icon: Icon, color, sub, warn }) {
           <Icon size={22} className="hidden md:block" style={{ color: clr }} />
         </div>
       </div>
-      <p className="text-2xl md:text-3xl xl:text-4xl font-black leading-none tabular-nums whitespace-nowrap" style={{ color: warn ? '#ef4444' : 'var(--text)' }}>
+      <p className="text-xl md:text-2xl xl:text-3xl font-black leading-none tabular-nums break-words" style={{ color: warn ? '#ef4444' : 'var(--text)' }}>
         {value}
       </p>
       {sub && <p className="text-xs md:text-sm leading-tight" style={{ color: 'var(--text-3)' }}>{sub}</p>}
@@ -56,8 +56,8 @@ function ReservaFinRow({ r, onClick }) {
           <span>{r.n_pasajeros} pax</span>
         </div>
       </div>
-      <div className="flex-shrink-0 text-right">
-        <p className="font-black text-sm md:text-xl" style={{ color: saldo > 0 ? '#dc2626' : '#059669' }}>
+      <div className="flex-shrink-0 text-right max-w-[40%]">
+        <p className="font-black text-sm md:text-xl break-words" style={{ color: saldo > 0 ? '#dc2626' : '#059669' }}>
           {fmtMoneda(saldo)}
         </p>
         <p className="text-xs md:text-sm" style={{ color: 'var(--text-3)' }}>saldo</p>

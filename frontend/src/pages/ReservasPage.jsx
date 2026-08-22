@@ -166,24 +166,24 @@ export default function ReservasPage() {
       <div className="sm:hidden rounded-2xl overflow-hidden" style={{ boxShadow: '0 6px 20px rgba(67,97,238,0.18)' }}>
         <div className="flex">
           {/* Activas */}
-          <div className="flex-1 flex flex-col items-center justify-center py-4 px-2"
+          <div className="flex-1 min-w-0 flex flex-col items-center justify-center py-4 px-2"
             style={{ background: 'linear-gradient(135deg,#4361ee,#2937b0)' }}>
             <p className="text-[10px] font-semibold text-white/60 mb-1">Activas</p>
             <p className="font-black text-2xl text-white leading-none">{activas}</p>
           </div>
           {/* Total */}
-          <div className="flex-1 flex flex-col items-center justify-center py-3 px-2"
+          <div className="flex-1 min-w-0 flex flex-col items-center justify-center py-3 px-2"
             style={{ background: 'var(--card)', borderLeft: '1px solid var(--border)' }}>
             <p className="text-[10px] font-semibold mb-1" style={{ color: 'var(--text-3)' }}>Total</p>
-            <p className="font-black text-xs leading-tight text-center tabular-nums" style={{ color: 'var(--text)' }}>
+            <p className="font-black text-xs leading-tight text-center tabular-nums break-words" style={{ color: 'var(--text)' }}>
               {fmtMoneda(totalMonto)}
             </p>
           </div>
           {/* Saldo */}
-          <div className="flex-1 flex flex-col items-center justify-center py-3 px-2"
+          <div className="flex-1 min-w-0 flex flex-col items-center justify-center py-3 px-2"
             style={{ background: 'var(--card)', borderLeft: '1px solid var(--border)' }}>
             <p className="text-[10px] font-semibold mb-1" style={{ color: 'var(--text-3)' }}>Saldo</p>
-            <p className="font-black text-xs leading-tight text-center tabular-nums"
+            <p className="font-black text-xs leading-tight text-center tabular-nums break-words"
               style={{ color: totalSaldo > 0 ? '#f56565' : 'var(--text)' }}>
               {fmtMoneda(totalSaldo)}
             </p>
@@ -213,7 +213,7 @@ export default function ReservasPage() {
           </div>
           <div className="min-w-0">
             <p className="text-xs md:text-sm leading-tight" style={{ color: 'var(--text-3)' }}>Total</p>
-            <p className="font-black text-xl md:text-2xl xl:text-3xl leading-tight whitespace-nowrap" style={{ color: 'var(--text)' }}>
+            <p className="font-black text-lg md:text-xl xl:text-2xl leading-tight break-words" style={{ color: 'var(--text)' }}>
               {fmtMoneda(totalMonto)}
             </p>
           </div>
@@ -227,7 +227,7 @@ export default function ReservasPage() {
           </div>
           <div className="min-w-0">
             <p className="text-xs md:text-sm leading-tight" style={{ color: 'var(--text-3)' }}>Saldo</p>
-            <p className="font-black text-xl md:text-2xl xl:text-3xl leading-tight whitespace-nowrap"
+            <p className="font-black text-lg md:text-xl xl:text-2xl leading-tight break-words"
               style={{ color: totalSaldo > 0 ? '#f56565' : 'var(--text)' }}>
               {fmtMoneda(totalSaldo)}
             </p>

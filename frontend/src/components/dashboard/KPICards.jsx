@@ -9,26 +9,26 @@ import { fmtMoneda, fmtNumero } from '../../utils/formatters';
 function KpiHero({ label, value, icon: Icon, sub, extra }) {
   return (
     <div
-      className="rounded-2xl p-5 md:p-7 flex flex-col gap-3 col-span-2 md:col-span-1 md:row-span-2"
+      className="rounded-2xl p-5 md:p-7 flex flex-col gap-3 col-span-2 md:col-span-1 md:row-span-2 overflow-hidden"
       style={{
         background: 'linear-gradient(145deg, #4361ee 0%, #2937b0 100%)',
         boxShadow: '0 8px 32px rgba(67,97,238,0.30), 0 2px 8px rgba(67,97,238,0.20)',
       }}
     >
-      <div className="flex items-center justify-between">
-        <p className="text-xs md:text-sm font-bold uppercase tracking-wider text-white/70">{label}</p>
-        <span className="w-9 h-9 md:w-12 md:h-12 rounded-xl md:rounded-2xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.15)' }}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs md:text-sm font-bold uppercase tracking-wider text-white/70 min-w-0">{label}</p>
+        <span className="w-9 h-9 md:w-12 md:h-12 rounded-xl md:rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.15)' }}>
           <Icon size={16} className="md:hidden text-white" />
           <Icon size={22} className="hidden md:block text-white" />
         </span>
       </div>
-      <div>
-        <p className="text-lg sm:text-2xl md:text-3xl xl:text-4xl font-black tabular-nums text-white leading-none whitespace-nowrap">{value}</p>
+      <div className="min-w-0">
+        <p className="text-lg sm:text-xl md:text-2xl xl:text-3xl font-black tabular-nums text-white leading-none break-words">{value}</p>
         {sub && <p className="text-xs md:text-sm text-white/55 mt-1.5 md:mt-2 leading-tight">{sub}</p>}
       </div>
       {extra && (
         <div className="mt-auto pt-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-          <p className="text-xs text-white/60">{extra}</p>
+          <p className="text-xs text-white/60 break-words">{extra}</p>
         </div>
       )}
     </div>
@@ -43,21 +43,21 @@ function KpiCard({ label, value, icon: Icon, warn = false, sub, tinted = false }
 
   return (
     <div
-      className="rounded-2xl p-4 md:p-6 flex flex-col gap-2.5 md:gap-4"
+      className="rounded-2xl p-4 md:p-6 flex flex-col gap-2.5 md:gap-4 overflow-hidden"
       style={{
         background: 'var(--card)',
         boxShadow: tinted ? 'var(--shadow-md)' : 'var(--shadow-sm)',
       }}
     >
       <div className="flex items-start justify-between gap-2">
-        <p className="text-xs md:text-sm font-bold uppercase tracking-wider leading-tight" style={{ color: 'var(--text-2)' }}>{label}</p>
+        <p className="text-xs md:text-sm font-bold uppercase tracking-wider leading-tight min-w-0" style={{ color: 'var(--text-2)' }}>{label}</p>
         <span className="w-8 h-8 md:w-11 md:h-11 rounded-xl md:rounded-2xl flex items-center justify-center flex-shrink-0"
           style={{ background: iconBg }}>
           <Icon size={14} className="md:hidden" style={{ color: iconClr }} />
           <Icon size={20} className="hidden md:block" style={{ color: iconClr }} />
         </span>
       </div>
-      <p className="text-sm sm:text-xl md:text-2xl xl:text-3xl font-black leading-none tabular-nums whitespace-nowrap" style={{ color: valClr }}>{value}</p>
+      <p className="text-sm sm:text-lg md:text-xl xl:text-2xl font-black leading-none tabular-nums break-words" style={{ color: valClr }}>{value}</p>
       {sub && <p className="text-xs md:text-sm leading-tight" style={{ color: 'var(--text-3)' }}>{sub}</p>}
     </div>
   );

@@ -74,15 +74,15 @@ function ServicioCard({ s, onEditar, onClonar, onCotizar }) {
 
       {/* ── Stats en fila ── */}
       <div className="flex items-center" style={{ borderBottom: '1px solid var(--border)' }}>
-        <div className="flex-1 px-3 md:px-4 py-2.5 md:py-4 text-center" style={{ borderRight: '1px solid var(--border)' }}>
-          <p className="text-base md:text-xl font-bold" style={{ color: 'var(--text)' }}>{s.duracion_dias}</p>
+        <div className="flex-1 min-w-0 px-3 md:px-4 py-2.5 md:py-4 text-center" style={{ borderRight: '1px solid var(--border)' }}>
+          <p className="text-base md:text-xl font-bold break-words" style={{ color: 'var(--text)' }}>{s.duracion_dias}</p>
           <p className="text-xs md:text-sm" style={{ color: 'var(--text-3)' }}>día{s.duracion_dias !== 1 ? 's' : ''}</p>
         </div>
-        <div className="flex-1 px-3 md:px-4 py-2.5 md:py-4 text-center" style={{ borderRight: '1px solid var(--border)' }}>
-          <p className="text-base md:text-xl font-bold" style={{ color: 'var(--brand)' }}>{fmtMoneda(s.precio_base_usd)}</p>
+        <div className="flex-1 min-w-0 px-3 md:px-4 py-2.5 md:py-4 text-center" style={{ borderRight: '1px solid var(--border)' }}>
+          <p className="text-base md:text-xl font-bold break-words" style={{ color: 'var(--brand)' }}>{fmtMoneda(s.precio_base_usd)}</p>
           <p className="text-xs md:text-sm" style={{ color: 'var(--text-3)' }}>/ pax</p>
         </div>
-        <div className="flex-1 px-3 md:px-4 py-2.5 md:py-4 text-center" style={{ borderRight: '1px solid var(--border)' }}>
+        <div className="flex-1 min-w-0 px-3 md:px-4 py-2.5 md:py-4 text-center" style={{ borderRight: '1px solid var(--border)' }}>
           {s.nivel_dificultad ? (
             <>
               <Stars nivel={s.nivel_dificultad} />

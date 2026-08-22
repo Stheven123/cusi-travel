@@ -33,20 +33,20 @@ function SummaryStrip({ rows }) {
   const provUnicos = [...new Set(rows.map(r => r.proveedor_nombre).filter(Boolean))].length;
 
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
       {[
         { label: 'Registros', value: rows.length, icon: Hash, color: 'var(--brand)' },
         { label: 'Costo total', value: fmtMoneda(totalCosto || totalUsd), icon: DollarSign, color: '#10b981' },
         { label: 'Proveedores únicos', value: provUnicos || '—', icon: Users, color: '#f59e0b' },
       ].map(({ label, value, icon: Icon, color }) => (
-        <div key={label} className="rounded-2xl p-4 md:p-7 text-center"
+        <div key={label} className="rounded-2xl p-4 md:p-7 text-center overflow-hidden"
           style={{ background: 'var(--card)', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border)' }}>
           <div className="w-8 h-8 md:w-12 md:h-12 rounded-xl md:rounded-2xl mx-auto mb-2 md:mb-3 flex items-center justify-center"
             style={{ background: `${color}22` }}>
             <Icon size={14} className="md:hidden" style={{ color }} />
             <Icon size={22} className="hidden md:block" style={{ color }} />
           </div>
-          <p className="text-xl md:text-3xl font-black leading-none" style={{ color: 'var(--text)' }}>{value}</p>
+          <p className="text-xl md:text-3xl font-black leading-none break-words" style={{ color: 'var(--text)' }}>{value}</p>
           <p className="text-xs md:text-sm mt-1" style={{ color: 'var(--text-3)' }}>{label}</p>
         </div>
       ))}
