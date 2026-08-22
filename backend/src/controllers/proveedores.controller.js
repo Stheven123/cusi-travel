@@ -114,6 +114,7 @@ const getAllDetalles = async (req, res, next) => {
 };
 
 // Checklist estándar que se precarga al crear una operación de tipo GUIA
+// cuando el usuario no define su propio checklist al crearla.
 const CHECKLIST_GUIA = [
   'Fecha de confirmación',
   'Fecha de reconfirmación',
@@ -123,15 +124,20 @@ const CHECKLIST_GUIA = [
   'Fecha de pago',
 ];
 
+const tareasInlineSchema = z.array(z.object({ titulo: z.string().min(1).max(300) })).optional();
+
 const createDetalle = async (req, res, next) => {
   try {
-    const body = detalleSchema.parse(req.body);
-    const data = await service.createDetalle(body, req.user.id);
-    if (body.tipo_servicio === 'GUIA') {
-      await service.createTareasOperacionBulk(
-        data.id,
-        CHECKLIST_GUIA.map(titulo => ({ titulo }))
-      );
+    const body   = detalleSchema.parse(req.body);
+    const tareas = tareasInlineSchema.parse(req.body.tareas);
+    const data   = await service.createDetalle(body, req.user.id);
+
+    const titulos = tareas?.length
+      ? tareas.map(t => t.titulo)
+      : (body.tipo_servicio === 'GUIA' ? CHECKLIST_GUIA : []);
+
+    if (titulos.length) {
+      await service.createTareasOperacionBulk(data.id, titulos.map(titulo => ({ titulo })));
     }
     res.status(201).json({ ok: true, data });
   } catch (err) { next(err); }

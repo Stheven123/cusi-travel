@@ -418,6 +418,19 @@ function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
     ? proveedores.filter(p => p.tipo === f.tipo_servicio)
     : proveedores;
 
+  // Checklist de tareas — solo al CREAR: al editar, las tareas ya existentes
+  // se gestionan con el checklist desplegable de la operación (ver más abajo).
+  const esNueva = !inicial?.id;
+  const [tareas, setTareas]         = useState([]);
+  const [nuevaTarea, setNuevaTarea] = useState('');
+  const addTarea = () => {
+    const titulo = nuevaTarea.trim();
+    if (!titulo) return;
+    setTareas(p => [...p, titulo]);
+    setNuevaTarea('');
+  };
+  const removeTarea = (i) => setTareas(p => p.filter((_, idx) => idx !== i));
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErr('');
@@ -443,6 +456,7 @@ function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
         serie_documento:    f.serie_documento  || undefined,
         numero_documento:   f.numero_documento || undefined,
         enlace_drive:       f.enlace_drive     || undefined,
+        ...(esNueva && tareas.length ? { tareas: tareas.map(titulo => ({ titulo })) } : {}),
       });
     } catch (e) {
       setErr(e?.error || e?.message || 'Error al guardar la operación');
@@ -560,6 +574,32 @@ function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
             onChange={e => set('enlace_drive', e.target.value)} placeholder="https://drive.google.com/..." />
         </div>
       </div>
+      {esNueva && (
+        <div className="pt-2 space-y-2" style={{ borderTop: '1px dashed var(--border)' }}>
+          <label className="label">
+            Checklist de tareas {f.tipo_servicio === 'GUIA' && !tareas.length && (
+              <span className="font-normal" style={{ color: 'var(--text-3)' }}>(si lo dejas vacío, se usa el checklist estándar de guía)</span>
+            )}
+          </label>
+          {tareas.map((t, i) => (
+            <div key={i} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg" style={{ background: 'var(--card-2)' }}>
+              <span className="flex-1" style={{ color: 'var(--text)' }}>{t}</span>
+              <button type="button" onClick={() => removeTarea(i)} style={{ color: '#ef4444' }}>
+                <X size={12} />
+              </button>
+            </div>
+          ))}
+          <div className="flex gap-2">
+            <input className="input-field text-xs flex-1" placeholder="Nueva tarea del checklist..."
+              value={nuevaTarea} onChange={e => setNuevaTarea(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTarea(); } }} />
+            <button type="button" onClick={addTarea}
+              className="px-3 rounded-lg text-xs font-semibold" style={{ background: 'var(--brand)', color: 'white' }}>
+              <Plus size={13} />
+            </button>
+          </div>
+        </div>
+      )}
       <div className="flex gap-3 justify-end pt-2" style={{ borderTop: '1px solid var(--border)' }}>
         <button type="button" onClick={onCancel} className="btn-secondary" disabled={saving}>Cancelar</button>
         <button type="submit" className="btn-primary" disabled={saving}>
