@@ -4,7 +4,7 @@ import {
   ArrowLeft, Edit2, Trash2, Plus, UserPlus, MapPin, Users,
   Calendar, DollarSign, CheckCircle2, Clock,
   ChevronDown, ClipboardList, FileText, X, Download, FolderOpen,
-  Link as LinkIcon, User,
+  Link as LinkIcon, User, Wallet,
 } from 'lucide-react';
 import { reservasApi } from '../api/reservas.api';
 import { pasajerosApi } from '../api/pasajeros.api';
@@ -689,6 +689,57 @@ function BriefingRow({ b, onEdit, onDelete }) {
   );
 }
 
+/* ── Sección editable inline (Notas / Presupuesto) — siempre visible,
+   no depende de que ya tenga contenido, para que sea un módulo real
+   y no algo escondido dentro del modal de "Editar reserva" ────── */
+function SeccionEditable({ icon: Icon, title, color, value, placeholder, onSave }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal]         = useState(value || '');
+  const [saving, setSaving]   = useState(false);
+
+  useEffect(() => { if (!editing) setVal(value || ''); }, [value, editing]);
+
+  const save = async () => {
+    setSaving(true);
+    try { await onSave(val); setEditing(false); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div className="col-span-2 sm:col-span-3 lg:col-span-4 rounded-2xl p-4"
+      style={{ background: 'var(--card)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
+      <div className="flex items-center justify-between mb-1.5">
+        <p className="text-xs font-bold uppercase tracking-wide flex items-center gap-1.5" style={{ color: 'var(--text-3)' }}>
+          <Icon size={13} style={{ color }} /> {title}
+        </p>
+        {!editing && (
+          <button onClick={() => setEditing(true)}
+            className="text-xs font-semibold cursor-pointer flex items-center gap-1" style={{ color: 'var(--brand)' }}>
+            <Edit2 size={12} /> {value ? 'Editar' : `Agregar ${title.toLowerCase()}`}
+          </button>
+        )}
+      </div>
+      {editing ? (
+        <div className="space-y-2">
+          <textarea rows={4} className="input-field resize-none" value={val}
+            onChange={e => setVal(e.target.value)} placeholder={placeholder} autoFocus />
+          <div className="flex gap-2 justify-end">
+            <button onClick={() => { setEditing(false); setVal(value || ''); }}
+              className="btn-secondary text-xs" disabled={saving}>Cancelar</button>
+            <button onClick={save} className="btn-primary text-xs" disabled={saving}>
+              {saving ? 'Guardando...' : 'Guardar'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm leading-relaxed whitespace-pre-line" style={{ color: value ? 'var(--text)' : 'var(--text-3)' }}>
+          {value || `Sin ${title.toLowerCase()} registrado.`}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /* ── Page ──────────────────────────────────────────────────────── */
 export default function ReservaDetallePage() {
   const { id }    = useParams();
@@ -739,6 +790,18 @@ export default function ReservaDetallePage() {
     await reservasApi.update(id, data);
     setEditModal(false);
     setSuccess('Reserva actualizada');
+    load();
+  };
+
+  const handleSaveNotas = async (val) => {
+    await reservasApi.update(id, { observaciones: val });
+    setSuccess('Notas actualizadas');
+    load();
+  };
+
+  const handleSavePresupuesto = async (val) => {
+    await reservasApi.update(id, { presupuesto: val });
+    setSuccess('Presupuesto actualizado');
     load();
   };
 
@@ -1056,20 +1119,18 @@ export default function ReservaDetallePage() {
               <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{val || '—'}</p>
             </div>
           ))}
-          {reserva.observaciones && (
-            <div className="col-span-2 sm:col-span-3 lg:col-span-4 rounded-2xl p-4"
-              style={{ background: 'var(--card)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
-              <p className="text-xs font-bold uppercase tracking-wide mb-1" style={{ color: 'var(--text-3)' }}>Notas</p>
-              <p className="text-sm leading-relaxed whitespace-pre-line" style={{ color: 'var(--text)' }}>{reserva.observaciones}</p>
-            </div>
-          )}
-          {reserva.presupuesto && (
-            <div className="col-span-2 sm:col-span-3 lg:col-span-4 rounded-2xl p-4"
-              style={{ background: 'var(--card)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
-              <p className="text-xs font-bold uppercase tracking-wide mb-1" style={{ color: 'var(--text-3)' }}>Presupuesto</p>
-              <p className="text-sm leading-relaxed whitespace-pre-line" style={{ color: 'var(--text)' }}>{reserva.presupuesto}</p>
-            </div>
-          )}
+          <SeccionEditable
+            icon={FileText} title="Notas" color="#8892aa"
+            value={reserva.observaciones}
+            placeholder="Requerimientos especiales, notas del tour, observaciones del equipo..."
+            onSave={handleSaveNotas}
+          />
+          <SeccionEditable
+            icon={Wallet} title="Presupuesto" color="#059669"
+            value={reserva.presupuesto}
+            placeholder="Desglose de presupuesto, costos estimados, notas para finanzas..."
+            onSave={handleSavePresupuesto}
+          />
           {reserva.servicios_adicionales?.length > 0 && (
             <div className="col-span-2 sm:col-span-3 lg:col-span-4 rounded-2xl p-4"
               style={{ background: 'var(--card)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
