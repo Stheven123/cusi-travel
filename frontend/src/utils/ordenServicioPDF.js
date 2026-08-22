@@ -84,6 +84,26 @@ const equipoTexto = (p) => {
   return items.join(', ') || '—';
 };
 
+// ── Helpers para el itinerario detallado ────────────────────────────────
+const comidasTexto = (it) => {
+  const m = [];
+  if (it.desayuno)  m.push('D');
+  if (it.almuerzo)  m.push('A');
+  if (it.cena)      m.push('C');
+  if (it.box_lunch) m.push('BL');
+  return m.length ? m.join('/') : '—';
+};
+
+const datosTrekTexto = (it) => {
+  const lineas = [];
+  if (it.altitud_max_msnm) lineas.push(`${it.altitud_max_msnm} msnm`);
+  const dist = [];
+  if (it.distancia_km)   dist.push(`${Number(it.distancia_km)} km`);
+  if (it.horas_caminata) dist.push(`${Number(it.horas_caminata)} h`);
+  if (dist.length) lineas.push(dist.join(' · '));
+  return lineas.length ? lineas.join('\n') : '—';
+};
+
 const TIPO_LABEL = {
   HOTEL: 'Hotel', TRANSPORTE: 'Transporte', RESTAURANTE: 'Restaurante', GUIA: 'Guía',
   AEROLINEA: 'Aerolínea', TREN: 'Tren', OPERADOR_LOCAL: 'Operador local', SEGURO: 'Seguro',
@@ -292,26 +312,52 @@ export const generarOrdenServicioPDF = async ({ reserva, briefings = [], itinera
   y = doc.lastAutoTable.finalY + 5;
 
   // ── Itinerario detallado (si el paquete tiene día a día) ──
+  // Antes solo se imprimía it.titulo (la ruta corta, ej. "Cusco → Wayllabamba") y se
+  // perdía it.descripcion (el detalle real del día) — la columna quedaba casi vacía.
+  // Ahora combina título + descripción, y suma comidas incluidas y datos de trek
+  // (altitud/distancia/horas) que ya existen en el modelo pero nunca se mostraban.
   if (itinerarios?.length) {
-    y = ensureSpace(doc, y, 20);
+    const itsOrdenados = itinerarios.slice().sort((a, b) => a.dia_numero - b.dia_numero);
+    const conNotasOp = itsOrdenados.some(it => it.notas_operativas?.trim());
+
+    y = ensureSpace(doc, y, 26);
     y = sectionHeader(doc, 'ITINERARIO DETALLADO', y);
+
+    doc.setFont('helvetica', 'italic'); doc.setFontSize(7); doc.setTextColor(130, 130, 130);
+    doc.text('Comidas incluidas: D = Desayuno · A = Almuerzo · C = Cena · BL = Box Lunch', ML + 1, y + 3);
+    y += 5;
+
+    const head = ['Día', 'Fecha', 'Actividad', 'Comidas', 'Datos trek', 'Alojamiento'];
+    if (conNotasOp) head.push('Nota operativa');
+
+    const columnStyles = {
+      0: { cellWidth: 9,  halign: 'center' },
+      1: { cellWidth: 16 },
+      3: { cellWidth: 14, halign: 'center' },
+      4: { cellWidth: 24 },
+    };
+
     autoTable(doc, {
       startY: y,
       margin: { left: ML, right: MR },
       theme: 'grid',
-      styles: { font: 'helvetica', fontSize: 7.5, cellPadding: 1.8, lineColor: BORDER, lineWidth: 0.2, textColor: TXTDK },
+      styles: { font: 'helvetica', fontSize: 7.5, cellPadding: 1.8, lineColor: BORDER, lineWidth: 0.2, textColor: TXTDK, valign: 'top' },
       headStyles: { fillColor: GRAY_HEAD, textColor: TXTDK, fontStyle: 'bold' },
-      columnStyles: { 0: { cellWidth: 12, halign: 'center' }, 1: { cellWidth: 22 } },
-      head: [['Día', 'Fecha', 'Actividad', 'Alojamiento', 'Nota']],
-      body: itinerarios
-        .slice().sort((a, b) => a.dia_numero - b.dia_numero)
-        .map(it => [
+      columnStyles,
+      head: [head],
+      body: itsOrdenados.map(it => {
+        const actividad = [it.titulo, it.descripcion].filter(x => x?.trim()).join('\n') || '—';
+        const row = [
           it.dia_numero,
           addDaysISO(reserva.fecha_inicio, it.dia_numero - 1) || '—',
-          it.titulo || '—',
+          actividad,
+          comidasTexto(it),
+          datosTrekTexto(it),
           it.alojamiento || '—',
-          it.notas_operativas || '',
-        ]),
+        ];
+        if (conNotasOp) row.push(it.notas_operativas || '');
+        return row;
+      }),
     });
     y = doc.lastAutoTable.finalY + 5;
   }
