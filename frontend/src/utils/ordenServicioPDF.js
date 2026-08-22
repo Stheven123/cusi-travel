@@ -170,9 +170,10 @@ const buildHeaderRows = (reserva, briefings, itinerarios) => {
   return rows;
 };
 
-// ─── Sección de notas: RUC, pagos a staff, observaciones ───────────────
-const buildNotas = (reserva, agencia) => {
+// ─── Sección de notas: RUC, pagos a staff, observaciones + notas de la reserva ──
+const buildNotas = (reserva, agencia, notas = []) => {
   const lineas = (reserva.observaciones || '').split('\n').map(s => s.trim()).filter(Boolean);
+  notas.forEach(n => { if (n.texto?.trim()) lineas.push(n.texto.trim()); });
   const detalles = reserva.detalles || [];
 
   detalles.filter(d => d.notas?.trim()).forEach(d => {
@@ -194,15 +195,22 @@ const buildNotas = (reserva, agencia) => {
   return lineas;
 };
 
-// ─── Presupuesto: costos operativos (excluye pagos de staff, ya en Notas) ──
-const buildPresupuesto = (reserva) => {
-  return (reserva.detalles || [])
+// ─── Presupuesto: líneas manuales de la reserva + costos operativos
+// (excluye pagos de staff, ya listados en Notas) ────────────────────────
+const buildPresupuesto = (reserva, presupuestoItems = []) => {
+  const manuales = presupuestoItems.map(it => ({
+    descripcion: it.descripcion,
+    monto: Number(it.monto),
+    moneda: it.moneda || 'USD',
+  }));
+  const operativos = (reserva.detalles || [])
     .filter(d => !['GUIA', 'COCINERO', 'PORTER'].includes(d.tipo_servicio) && Number(d.costo_total_usd) > 0)
     .map(d => ({
       descripcion: d.descripcion || TIPO_LABEL[d.tipo_servicio] || d.tipo_servicio,
       monto: Number(d.costo_total_usd),
       moneda: d.moneda || 'USD',
     }));
+  return [...manuales, ...operativos];
 };
 
 // ─── Helpers de dibujo ──────────────────────────────────────────────────
@@ -219,7 +227,7 @@ const ensureSpace = (doc, y, needed) => {
   return y;
 };
 
-export const generarOrdenServicioPDF = async ({ reserva, briefings = [], itinerarios = [] }) => {
+export const generarOrdenServicioPDF = async ({ reserva, briefings = [], itinerarios = [], notas: notasReserva = [], presupuestoItems = [] }) => {
   const agencia = getAgenciaData();
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   let y = 12;
@@ -309,8 +317,8 @@ export const generarOrdenServicioPDF = async ({ reserva, briefings = [], itinera
   }
 
   // ── Notas ──
-  const notas = buildNotas(reserva, agencia);
-  if (notas.length) {
+  const notasLineas = buildNotas(reserva, agencia, notasReserva);
+  if (notasLineas.length) {
     y = ensureSpace(doc, y, 16);
     y = sectionHeader(doc, 'NOTAS', y);
     autoTable(doc, {
@@ -318,25 +326,16 @@ export const generarOrdenServicioPDF = async ({ reserva, briefings = [], itinera
       margin: { left: ML, right: MR },
       theme: 'grid',
       styles: { font: 'helvetica', fontSize: 8, cellPadding: 2, lineColor: BORDER, lineWidth: 0.2, textColor: TXTDK },
-      body: notas.map(n => [n]),
+      body: notasLineas.map(n => [n]),
     });
     y = doc.lastAutoTable.finalY + 5;
   }
 
-  // ── Presupuesto (notas libres + costos operativos, por moneda) ──
-  const presupuesto = buildPresupuesto(reserva);
-  const presupuestoLibre = (reserva.presupuesto || '').trim();
-  if (presupuesto.length || presupuestoLibre) {
+  // ── Presupuesto (líneas manuales de la reserva + costos operativos, por moneda) ──
+  const presupuesto = buildPresupuesto(reserva, presupuestoItems);
+  if (presupuesto.length) {
     y = ensureSpace(doc, y, 16);
     y = sectionHeader(doc, 'PRESUPUESTO', y);
-
-    if (presupuestoLibre) {
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...TXTDK);
-      const lineas = doc.splitTextToSize(presupuestoLibre, CW - 6);
-      y = ensureSpace(doc, y, lineas.length * 4 + 4);
-      doc.text(lineas, ML + 3, y + 4);
-      y += lineas.length * 4 + 4;
-    }
 
     const totales = {};
     presupuesto.forEach(it => { totales[it.moneda] = (totales[it.moneda] || 0) + it.monto; });

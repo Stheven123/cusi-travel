@@ -11,6 +11,8 @@ const usuariosRoutes    = require('./usuarios.routes');
 const reportesRoutes    = require('./reportes.routes');
 const briefingsRoutes   = require('./briefings.routes');
 const agenciasRoutes    = require('./agencias.routes');
+const notasRoutes       = require('./notas.routes');
+const presupuestoRoutes = require('./presupuesto.routes');
 
 const router = Router();
 
@@ -28,5 +30,7 @@ router.use('/usuarios',    usuariosRoutes);
 router.use('/reportes',    reportesRoutes);
 router.use('/briefings',   briefingsRoutes);
 router.use('/agencias',   agenciasRoutes);
+router.use('/notas',       notasRoutes);
+router.use('/presupuesto', presupuestoRoutes);
 
 module.exports = router;

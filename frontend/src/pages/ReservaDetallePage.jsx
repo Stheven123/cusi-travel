@@ -10,6 +10,8 @@ import { reservasApi } from '../api/reservas.api';
 import { pasajerosApi } from '../api/pasajeros.api';
 import { proveedoresApi } from '../api/proveedores.api';
 import { briefingsApi } from '../api/briefings.api';
+import { notasApi } from '../api/notas.api';
+import { presupuestoApi } from '../api/presupuesto.api';
 import { tareasApi } from '../api/tareas.api';
 import { usuariosApi } from '../api/usuarios.api';
 import { reportesApi } from '../api/reportes.api';
@@ -689,53 +691,149 @@ function BriefingRow({ b, onEdit, onDelete }) {
   );
 }
 
-/* ── Sección editable inline (Notas / Presupuesto) — siempre visible,
-   no depende de que ya tenga contenido, para que sea un módulo real
-   y no algo escondido dentro del modal de "Editar reserva" ────── */
-function SeccionEditable({ icon: Icon, title, color, value, placeholder, onSave }) {
-  const [editing, setEditing] = useState(false);
-  const [val, setVal]         = useState(value || '');
-  const [saving, setSaving]   = useState(false);
+/* ── Nota de reserva: form + row (cada nota es su propio registro) ─── */
+function NotaForm({ reservaId, inicial, onSave, onCancel }) {
+  const [texto, setTexto]   = useState(inicial?.texto || '');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr]       = useState('');
 
-  useEffect(() => { if (!editing) setVal(value || ''); }, [value, editing]);
-
-  const save = async () => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!texto.trim()) return setErr('Escribe una nota');
     setSaving(true);
-    try { await onSave(val); setEditing(false); }
-    finally { setSaving(false); }
+    try {
+      await onSave({ reserva_id: reservaId, texto: texto.trim() });
+    } catch (e) {
+      setErr(e?.error || e?.message || 'Error al guardar la nota');
+    } finally { setSaving(false); }
   };
 
   return (
-    <div className="col-span-2 sm:col-span-3 lg:col-span-4 rounded-2xl p-4"
-      style={{ background: 'var(--card)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
-      <div className="flex items-center justify-between mb-1.5">
-        <p className="text-xs font-bold uppercase tracking-wide flex items-center gap-1.5" style={{ color: 'var(--text-3)' }}>
-          <Icon size={13} style={{ color }} /> {title}
-        </p>
-        {!editing && (
-          <button onClick={() => setEditing(true)}
-            className="text-xs font-semibold cursor-pointer flex items-center gap-1" style={{ color: 'var(--brand)' }}>
-            <Edit2 size={12} /> {value ? 'Editar' : `Agregar ${title.toLowerCase()}`}
-          </button>
-        )}
-      </div>
-      {editing ? (
-        <div className="space-y-2">
-          <textarea rows={4} className="input-field resize-none" value={val}
-            onChange={e => setVal(e.target.value)} placeholder={placeholder} autoFocus />
-          <div className="flex gap-2 justify-end">
-            <button onClick={() => { setEditing(false); setVal(value || ''); }}
-              className="btn-secondary text-xs" disabled={saving}>Cancelar</button>
-            <button onClick={save} className="btn-primary text-xs" disabled={saving}>
-              {saving ? 'Guardando...' : 'Guardar'}
-            </button>
-          </div>
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {err && (
+        <div className="text-sm px-4 py-3 rounded-2xl font-medium" style={{ background: '#fef2f2', color: '#ef4444' }}>
+          {err}
         </div>
-      ) : (
-        <p className="text-sm leading-relaxed whitespace-pre-line" style={{ color: value ? 'var(--text)' : 'var(--text-3)' }}>
-          {value || `Sin ${title.toLowerCase()} registrado.`}
-        </p>
       )}
+      <div>
+        <label className="label">Nota <span style={{ color: '#ef4444' }}>*</span></label>
+        <textarea rows={4} className="input-field resize-none" value={texto}
+          onChange={e => setTexto(e.target.value)}
+          placeholder="Requerimiento especial, observación, recordatorio..." autoFocus />
+      </div>
+      <div className="flex gap-3 justify-end pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+        <button type="button" onClick={onCancel} className="btn-secondary" disabled={saving}>Cancelar</button>
+        <button type="submit" className="btn-primary" disabled={saving}>
+          {saving ? 'Guardando...' : (inicial?.id ? 'Actualizar nota' : 'Guardar nota')}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function NotaRow({ n, onEdit, onDelete }) {
+  return (
+    <div className="flex items-start gap-3 py-3 px-4 rounded-2xl"
+      style={{ background: 'var(--card)', boxShadow: 'var(--shadow-sm)', borderLeft: '3px solid #8892aa' }}>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm leading-relaxed whitespace-pre-line" style={{ color: 'var(--text)' }}>{n.texto}</p>
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5 text-xs" style={{ color: 'var(--text-3)' }}>
+          {n.creado_por_nombre && <span className="flex items-center gap-1"><User size={10} />{n.creado_por_nombre}</span>}
+          <span className="flex items-center gap-1"><Clock size={10} />{fmtFechaHora(n.creado_en)}</span>
+        </div>
+      </div>
+      <div className="flex items-center gap-1 flex-shrink-0">
+        <button onClick={() => onEdit(n)} className="p-1.5 rounded-lg cursor-pointer hover:opacity-70" style={{ color: 'var(--text-2)' }}>
+          <Edit2 size={14} />
+        </button>
+        <button onClick={() => onDelete(n.id)} className="p-1.5 rounded-lg cursor-pointer hover:opacity-70" style={{ color: '#ef4444' }}>
+          <Trash2 size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── Línea de presupuesto: form + row (cada línea es su propio registro) ─── */
+const PRESUPUESTO_EMPTY = { descripcion: '', monto: '', moneda: 'USD' };
+
+function PresupuestoForm({ reservaId, inicial, onSave, onCancel }) {
+  const [f, setF]           = useState({ ...PRESUPUESTO_EMPTY, ...inicial, monto: inicial?.monto ?? '' });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr]       = useState('');
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!f.descripcion.trim()) return setErr('Ingresa una descripción');
+    setSaving(true);
+    try {
+      await onSave({
+        reserva_id:  reservaId,
+        descripcion: f.descripcion.trim(),
+        monto:       Number(f.monto) || 0,
+        moneda:      f.moneda,
+      });
+    } catch (e) {
+      setErr(e?.error || e?.message || 'Error al guardar');
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {err && (
+        <div className="text-sm px-4 py-3 rounded-2xl font-medium" style={{ background: '#fef2f2', color: '#ef4444' }}>
+          {err}
+        </div>
+      )}
+      <div>
+        <label className="label">Descripción <span style={{ color: '#ef4444' }}>*</span></label>
+        <input className="input-field" value={f.descripcion} onChange={e => set('descripcion', e.target.value)}
+          placeholder="Ej: Propina guía, gasto imprevisto..." autoFocus />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">Monto</label>
+          <input type="number" step="0.01" min="0" className="input-field" value={f.monto}
+            onChange={e => set('monto', e.target.value)} placeholder="0.00" />
+        </div>
+        <div>
+          <label className="label">Moneda</label>
+          <select className="input-field" value={f.moneda} onChange={e => set('moneda', e.target.value)}>
+            <option value="USD">USD $</option>
+            <option value="PEN">PEN S/</option>
+          </select>
+        </div>
+      </div>
+      <div className="flex gap-3 justify-end pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+        <button type="button" onClick={onCancel} className="btn-secondary" disabled={saving}>Cancelar</button>
+        <button type="submit" className="btn-primary" disabled={saving}>
+          {saving ? 'Guardando...' : (inicial?.id ? 'Actualizar' : 'Guardar')}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function PresupuestoRow({ p, onEdit, onDelete }) {
+  return (
+    <div className="flex items-center gap-3 py-3 px-4 rounded-2xl" style={{ background: 'var(--card)', boxShadow: 'var(--shadow-sm)' }}>
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-sm" style={{ color: 'var(--text)' }}>{p.descripcion}</p>
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
+          {p.creado_por_nombre && <span className="flex items-center gap-1"><User size={10} />{p.creado_por_nombre}</span>}
+          <span className="flex items-center gap-1"><Clock size={10} />{fmtFechaHora(p.creado_en)}</span>
+        </div>
+      </div>
+      <span className="font-bold text-sm flex-shrink-0" style={{ color: 'var(--text)' }}>{fmtMoneda(p.monto, p.moneda)}</span>
+      <div className="flex items-center gap-1 flex-shrink-0">
+        <button onClick={() => onEdit(p)} className="p-1.5 rounded-lg cursor-pointer hover:opacity-70" style={{ color: 'var(--text-2)' }}>
+          <Edit2 size={14} />
+        </button>
+        <button onClick={() => onDelete(p.id)} className="p-1.5 rounded-lg cursor-pointer hover:opacity-70" style={{ color: '#ef4444' }}>
+          <Trash2 size={14} />
+        </button>
+      </div>
     </div>
   );
 }
@@ -762,6 +860,16 @@ export default function ReservaDetallePage() {
   const [briefingModal, setBriefingModal] = useState(false);
   const [briefingEdit, setBriefingEdit] = useState(null);
 
+  // Notas (una fila por nota)
+  const [notas, setNotas]               = useState([]);
+  const [notaModal, setNotaModal]       = useState(false);
+  const [notaEdit, setNotaEdit]         = useState(null);
+
+  // Presupuesto (una fila por línea)
+  const [presupuestoItems, setPresupuestoItems]     = useState([]);
+  const [presupuestoModal, setPresupuestoModal]     = useState(false);
+  const [presupuestoEdit, setPresupuestoEdit]       = useState(null);
+
   // Tareas
   const [usuarios, setUsuarios]         = useState([]);
   const [tareaModal, setTareaModal]     = useState(false);
@@ -769,12 +877,16 @@ export default function ReservaDetallePage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [res, brfs] = await Promise.all([
+      const [res, brfs, nts, pres] = await Promise.all([
         reservasApi.getById(id),
         briefingsApi.getByReserva(id),
+        notasApi.getByReserva(id),
+        presupuestoApi.getByReserva(id),
       ]);
       setReserva(res.data);
       setBriefings(brfs.data || []);
+      setNotas(nts.data || []);
+      setPresupuestoItems(pres.data || []);
     } catch { setError('No se pudo cargar la reserva'); }
     finally { setLoading(false); }
   }, [id]);
@@ -793,16 +905,48 @@ export default function ReservaDetallePage() {
     load();
   };
 
-  const handleSaveNotas = async (val) => {
-    await reservasApi.update(id, { observaciones: val });
-    setSuccess('Notas actualizadas');
-    load();
+  // Notas — CRUD por fila
+  const handleSaveNota = async (data) => {
+    if (notaEdit?.id) {
+      await notasApi.update(notaEdit.id, { texto: data.texto });
+      setSuccess('Nota actualizada');
+    } else {
+      await notasApi.create(data);
+      setSuccess('Nota agregada');
+    }
+    setNotaModal(false); setNotaEdit(null);
+    const r = await notasApi.getByReserva(id);
+    setNotas(r.data || []);
   };
 
-  const handleSavePresupuesto = async (val) => {
-    await reservasApi.update(id, { presupuesto: val });
-    setSuccess('Presupuesto actualizado');
-    load();
+  const handleDeleteNota = async (notaId) => {
+    if (!confirm('¿Eliminar esta nota?')) return;
+    await notasApi.remove(notaId);
+    setSuccess('Nota eliminada');
+    const r = await notasApi.getByReserva(id);
+    setNotas(r.data || []);
+  };
+
+  // Presupuesto — CRUD por fila
+  const handleSavePresupuestoItem = async (data) => {
+    if (presupuestoEdit?.id) {
+      await presupuestoApi.update(presupuestoEdit.id, data);
+      setSuccess('Ítem de presupuesto actualizado');
+    } else {
+      await presupuestoApi.create(data);
+      setSuccess('Ítem de presupuesto agregado');
+    }
+    setPresupuestoModal(false); setPresupuestoEdit(null);
+    const r = await presupuestoApi.getByReserva(id);
+    setPresupuestoItems(r.data || []);
+  };
+
+  const handleDeletePresupuestoItem = async (itemId) => {
+    if (!confirm('¿Eliminar este ítem de presupuesto?')) return;
+    await presupuestoApi.remove(itemId);
+    setSuccess('Ítem de presupuesto eliminado');
+    const r = await presupuestoApi.getByReserva(id);
+    setPresupuestoItems(r.data || []);
   };
 
   const handleCambiarEstado = async (estado) => {
@@ -878,7 +1022,7 @@ export default function ReservaDetallePage() {
           itinerarios = r.data?.itinerarios || [];
         } catch { /* si no se puede cargar el itinerario, se genera sin esa sección */ }
       }
-      await generarOrdenServicioPDF({ reserva, briefings, itinerarios });
+      await generarOrdenServicioPDF({ reserva, briefings, itinerarios, notas, presupuestoItems });
     } catch {
       setError('No se pudo generar la orden de salida');
     }
@@ -931,6 +1075,10 @@ export default function ReservaDetallePage() {
   if (!reserva) return <Alert type="error" message={error || 'Reserva no encontrada'} />;
 
   const saldo = Number(reserva.saldo_usd);
+  const totalesPresupuesto = presupuestoItems.reduce((acc, it) => {
+    acc[it.moneda] = (acc[it.moneda] || 0) + Number(it.monto || 0);
+    return acc;
+  }, {});
 
   return (
     <div className="space-y-5 max-w-6xl">
@@ -1071,6 +1219,8 @@ export default function ReservaDetallePage() {
               {t}
               {t === 'Pasajeros' && <span className="ml-1 opacity-70">({reserva.pasajeros?.length || 0})</span>}
               {t === 'Briefings' && <span className="ml-1 opacity-70">({briefings.length})</span>}
+              {t === 'Notas' && <span className="ml-1 opacity-70">({notas.length})</span>}
+              {t === 'Presupuesto' && <span className="ml-1 opacity-70">({presupuestoItems.length})</span>}
             </button>
           ))}
         </div>
@@ -1084,13 +1234,15 @@ export default function ReservaDetallePage() {
                   : { borderColor: 'transparent', color: 'var(--text-2)' }
                 }>
                 {t}
-                {(t === 'Pasajeros' || t === 'Tareas' || t === 'Operaciones' || t === 'Briefings') && (
+                {(t === 'Pasajeros' || t === 'Tareas' || t === 'Operaciones' || t === 'Briefings' || t === 'Notas' || t === 'Presupuesto') && (
                   <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full"
                     style={{ background: 'var(--card-2)', color: 'var(--text-3)' }}>
                     {t === 'Pasajeros'  ? reserva.pasajeros?.length || 0
                       : t === 'Tareas'  ? reserva.tareas?.length || 0
                       : t === 'Operaciones' ? reserva.detalles?.length || 0
-                      : briefings.length}
+                      : t === 'Briefings' ? briefings.length
+                      : t === 'Notas' ? notas.length
+                      : presupuestoItems.length}
                   </span>
                 )}
               </button>
@@ -1262,22 +1414,60 @@ export default function ReservaDetallePage() {
 
       {/* ── Tab 5: Notas ──────────────────────────────── */}
       {tab === 5 && (
-        <SeccionEditable
-          icon={FileText} title="Notas" color="#8892aa"
-          value={reserva.observaciones}
-          placeholder="Requerimientos especiales, notas del tour, observaciones del equipo..."
-          onSave={handleSaveNotas}
-        />
+        <div className="space-y-4">
+          <div className="flex justify-end">
+            <button onClick={() => { setNotaEdit(null); setNotaModal(true); }} className="btn-primary">
+              <Plus size={16} /> Agregar nota
+            </button>
+          </div>
+          {notas.length === 0 ? (
+            <div className="rounded-2xl p-10 text-center" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+              <FileText size={32} className="mx-auto mb-2" style={{ color: 'var(--text-3)' }} />
+              <p className="text-sm" style={{ color: 'var(--text-2)' }}>Sin notas registradas</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {notas.map(n => (
+                <NotaRow key={n.id} n={n}
+                  onEdit={n => { setNotaEdit(n); setNotaModal(true); }}
+                  onDelete={handleDeleteNota} />
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {/* ── Tab 6: Presupuesto ────────────────────────── */}
       {tab === 6 && (
-        <SeccionEditable
-          icon={Wallet} title="Presupuesto" color="#059669"
-          value={reserva.presupuesto}
-          placeholder="Desglose de presupuesto, costos estimados, notas para finanzas..."
-          onSave={handleSavePresupuesto}
-        />
+        <div className="space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(totalesPresupuesto).map(([moneda, total]) => (
+                <span key={moneda} className="text-sm font-bold px-3 py-1.5 rounded-xl"
+                  style={{ background: 'var(--brand-bg)', color: 'var(--brand)' }}>
+                  Total {moneda}: {fmtMoneda(total, moneda)}
+                </span>
+              ))}
+            </div>
+            <button onClick={() => { setPresupuestoEdit(null); setPresupuestoModal(true); }} className="btn-primary ml-auto">
+              <Plus size={16} /> Agregar ítem
+            </button>
+          </div>
+          {presupuestoItems.length === 0 ? (
+            <div className="rounded-2xl p-10 text-center" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+              <Wallet size={32} className="mx-auto mb-2" style={{ color: 'var(--text-3)' }} />
+              <p className="text-sm" style={{ color: 'var(--text-2)' }}>Sin ítems de presupuesto registrados</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {presupuestoItems.map(p => (
+                <PresupuestoRow key={p.id} p={p}
+                  onEdit={p => { setPresupuestoEdit(p); setPresupuestoModal(true); }}
+                  onDelete={handleDeletePresupuestoItem} />
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {/* ── Modales ───────────────────────────────────── */}
@@ -1318,6 +1508,26 @@ export default function ReservaDetallePage() {
           reservaId={Number(id)}
           onSave={handleSaveTarea}
           onCancel={() => setTareaModal(false)}
+        />
+      </Modal>
+
+      <Modal open={notaModal} onClose={() => { setNotaModal(false); setNotaEdit(null); }}
+        title={notaEdit ? 'Editar nota' : 'Nueva nota'}>
+        <NotaForm
+          reservaId={Number(id)}
+          inicial={notaEdit}
+          onSave={handleSaveNota}
+          onCancel={() => { setNotaModal(false); setNotaEdit(null); }}
+        />
+      </Modal>
+
+      <Modal open={presupuestoModal} onClose={() => { setPresupuestoModal(false); setPresupuestoEdit(null); }}
+        title={presupuestoEdit ? 'Editar ítem de presupuesto' : 'Nuevo ítem de presupuesto'}>
+        <PresupuestoForm
+          reservaId={Number(id)}
+          inicial={presupuestoEdit}
+          onSave={handleSavePresupuestoItem}
+          onCancel={() => { setPresupuestoModal(false); setPresupuestoEdit(null); }}
         />
       </Modal>
     </div>
