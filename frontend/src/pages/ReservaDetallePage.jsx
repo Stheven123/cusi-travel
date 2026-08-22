@@ -25,7 +25,7 @@ import { fmtFecha, fmtFechaHora, fmtMoneda } from '../utils/formatters';
 import { generarOrdenServicioPDF } from '../utils/ordenServicioPDF';
 import { ESTADOS_OPERACION, ESTADOS_DETALLE_OPERACION, TIPOS_DOCUMENTO } from '../utils/constants';
 
-const TABS = ['Info', 'Pasajeros', 'Operaciones', 'Tareas', 'Briefings'];
+const TABS = ['Info', 'Pasajeros', 'Operaciones', 'Tareas', 'Briefings', 'Notas', 'Presupuesto'];
 
 const ESTADO_DETALLE_CLR = {
   PENDIENTE:    '#f59e0b',
@@ -1119,18 +1119,6 @@ export default function ReservaDetallePage() {
               <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{val || '—'}</p>
             </div>
           ))}
-          <SeccionEditable
-            icon={FileText} title="Notas" color="#8892aa"
-            value={reserva.observaciones}
-            placeholder="Requerimientos especiales, notas del tour, observaciones del equipo..."
-            onSave={handleSaveNotas}
-          />
-          <SeccionEditable
-            icon={Wallet} title="Presupuesto" color="#059669"
-            value={reserva.presupuesto}
-            placeholder="Desglose de presupuesto, costos estimados, notas para finanzas..."
-            onSave={handleSavePresupuesto}
-          />
           {reserva.servicios_adicionales?.length > 0 && (
             <div className="col-span-2 sm:col-span-3 lg:col-span-4 rounded-2xl p-4"
               style={{ background: 'var(--card)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
@@ -1270,6 +1258,26 @@ export default function ReservaDetallePage() {
             </div>
           )}
         </div>
+      )}
+
+      {/* ── Tab 5: Notas ──────────────────────────────── */}
+      {tab === 5 && (
+        <SeccionEditable
+          icon={FileText} title="Notas" color="#8892aa"
+          value={reserva.observaciones}
+          placeholder="Requerimientos especiales, notas del tour, observaciones del equipo..."
+          onSave={handleSaveNotas}
+        />
+      )}
+
+      {/* ── Tab 6: Presupuesto ────────────────────────── */}
+      {tab === 6 && (
+        <SeccionEditable
+          icon={Wallet} title="Presupuesto" color="#059669"
+          value={reserva.presupuesto}
+          placeholder="Desglose de presupuesto, costos estimados, notas para finanzas..."
+          onSave={handleSavePresupuesto}
+        />
       )}
 
       {/* ── Modales ───────────────────────────────────── */}
