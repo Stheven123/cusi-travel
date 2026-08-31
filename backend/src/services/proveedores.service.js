@@ -100,6 +100,38 @@ const getDetallesByReserva = async (reservaId) => {
   return rows;
 };
 
+// Mantiene sincronizada la pestaña "Notas" de la reserva con las notas que se
+// escriben en una operación puntual: cada operación tiene a lo sumo una nota
+// asociada en reserva_notas (detalle_operacion_id), que se crea/actualiza/borra
+// junto con la nota de la operación.
+const TIPO_LABEL = {
+  HOTEL: 'Hotel', TRANSPORTE: 'Transporte', RESTAURANTE: 'Restaurante', GUIA: 'Guía',
+  AEROLINEA: 'Aerolínea', TREN: 'Tren', OPERADOR_LOCAL: 'Operador local', SEGURO: 'Seguro',
+  ACTIVIDAD: 'Actividad', COCINERO: 'Cocinero', PORTER: 'Quechuas', OTRO: 'Otro', INGRESOS: 'Ingreso',
+};
+
+const syncNotaOperacion = async (reservaId, detalleId, tipoServicio, proveedorId, notas, userId) => {
+  if (!notas?.trim()) {
+    await query('DELETE FROM cusi.reserva_notas WHERE detalle_operacion_id = $1', [detalleId]);
+    return;
+  }
+
+  let proveedorNombre = null;
+  if (proveedorId) {
+    const { rows } = await query('SELECT nombre FROM cusi.proveedores WHERE id = $1', [proveedorId]);
+    proveedorNombre = rows[0]?.nombre || null;
+  }
+  const texto = `${TIPO_LABEL[tipoServicio] || tipoServicio}${proveedorNombre ? ` (${proveedorNombre})` : ''}: ${notas.trim()}`;
+
+  await query(
+    `INSERT INTO cusi.reserva_notas (reserva_id, texto, creado_por_id, detalle_operacion_id)
+     VALUES ($1,$2,$3,$4)
+     ON CONFLICT (detalle_operacion_id) WHERE detalle_operacion_id IS NOT NULL
+     DO UPDATE SET texto = EXCLUDED.texto`,
+    [reservaId, texto, userId || null, detalleId]
+  );
+};
+
 const createDetalle = async (data, userId) => {
   const { rows } = await query(
     `INSERT INTO cusi.detalles_operacion_proveedor
@@ -129,7 +161,9 @@ const createDetalle = async (data, userId) => {
       userId                || null,
     ]
   );
-  return rows[0];
+  const detalle = rows[0];
+  await syncNotaOperacion(detalle.reserva_id, detalle.id, detalle.tipo_servicio, detalle.proveedor_id, detalle.notas, userId);
+  return detalle;
 };
 
 const updateDetalle = async (detalleId, data, userId) => {
@@ -159,7 +193,11 @@ const updateDetalle = async (detalleId, data, userId) => {
     [detalleId, ...values]
   );
   if (!rows.length) throw new AppError('Detalle de operación no encontrado', 404, 'NOT_FOUND');
-  return rows[0];
+  const detalle = rows[0];
+  if (Object.prototype.hasOwnProperty.call(campos, 'notas')) {
+    await syncNotaOperacion(detalle.reserva_id, detalle.id, detalle.tipo_servicio, detalle.proveedor_id, detalle.notas, userId);
+  }
+  return detalle;
 };
 
 const deleteDetalle = async (detalleId) => {

@@ -81,6 +81,15 @@ const buildFilters = (q) => {
     values.push(`%${q.busqueda}%`);
     idx++;
   }
+  if (q.pasajero) {
+    conds.push(`EXISTS (
+      SELECT 1 FROM cusi.pasajeros p2
+      WHERE p2.reserva_id = r.id
+        AND (p2.nombre ILIKE $${idx} OR p2.apellido ILIKE $${idx} OR p2.pasaporte ILIKE $${idx})
+    )`);
+    values.push(`%${q.pasajero}%`);
+    idx++;
+  }
 
   return { where: conds.join(' AND '), values, idx };
 };

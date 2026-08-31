@@ -28,6 +28,11 @@ const CAMPOS_DISPONIBLES = [
   { key: 'contacto_email',      label: 'Email proveedor' },
   { key: 'contacto_telefono',   label: 'Tel. proveedor' },
   { key: 'notas',               label: 'Notas' },
+  { key: 'briefing_fecha',      label: 'Fecha briefing' },
+  { key: 'briefing_hora',       label: 'Hora briefing' },
+  { key: 'briefing_lugar',      label: 'Lugar briefing' },
+  { key: 'briefing_persona_encargada', label: 'Encargado briefing' },
+  { key: 'briefing_notas',      label: 'Notas briefing' },
 ];
 
 export default function FiltrosReporte({ onResultados }) {
@@ -66,7 +71,7 @@ export default function FiltrosReporte({ onResultados }) {
         campos:         camposSelec.size > 0 ? Array.from(camposSelec) : undefined,
       };
       const res = await reportesApi.reporteProveedores(payload);
-      onResultados(res.data || [], Array.from(camposSelec));
+      onResultados(res.data || [], Array.from(camposSelec), payload);
     } catch (err) { setError(err.error || 'Error al generar reporte'); }
     finally { setLoading(false); }
   };
@@ -101,6 +106,9 @@ export default function FiltrosReporte({ onResultados }) {
             <option value="">— Todos los tipos —</option>
             {TIPOS_PROVEEDOR.map(t => <option key={t}>{t}</option>)}
           </select>
+          <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>
+            Filtra por "GUIA" para ver solo los guías asignados a cada reserva.
+          </p>
         </div>
         <div>
           <label className="label">Estado detalle</label>

@@ -1,0 +1,141 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Download, Plus, Trash2 } from 'lucide-react';
+import Modal from '../ui/Modal';
+import Spinner from '../ui/Spinner';
+import { getAgenciaData } from '../../pages/AgenciaPage';
+import {
+  construirOrdenServicioDoc, buildNotas, buildPresupuesto,
+} from '../../utils/ordenServicioPDF';
+
+// Vista previa del PDF de la orden de servicio con los datos (notas, presupuesto)
+// editables antes de descargar — y un toggle para generar la variante "para guía"
+// (sin presupuesto ni pagos a staff).
+export default function OrdenServicioPreviewModal({
+  open, onClose, reserva, briefings, itinerarios, notas, presupuestoItems,
+}) {
+  const [paraGuia, setParaGuia]   = useState(false);
+  const [notasLineas, setNotas]   = useState([]);
+  const [presupuesto, setPresu]   = useState([]);
+  const [blobUrl, setBlobUrl]     = useState('');
+  const [loading, setLoading]     = useState(false);
+  const debounceRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const agencia = getAgenciaData();
+    setNotas(buildNotas(reserva, agencia, notas, false));
+    setPresu(buildPresupuesto(reserva, presupuestoItems));
+    setParaGuia(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, reserva?.id]);
+
+  const regenerar = useCallback(async () => {
+    setLoading(true);
+    try {
+      const doc = await construirOrdenServicioDoc({
+        reserva, briefings, itinerarios, notas, presupuestoItems,
+        paraGuia,
+        notasOverride: notasLineas,
+        presupuestoOverride: presupuesto,
+      });
+      setBlobUrl(doc.output('bloburl'));
+    } finally { setLoading(false); }
+  }, [reserva, briefings, itinerarios, notas, presupuestoItems, paraGuia, notasLineas, presupuesto]);
+
+  useEffect(() => {
+    if (!open) return;
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(regenerar, 350);
+    return () => clearTimeout(debounceRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, paraGuia, notasLineas, presupuesto]);
+
+  const setPresuItem = (i, k, v) => setPresu(p => p.map((it, idx) => idx === i ? { ...it, [k]: v } : it));
+  const addPresuItem = () => setPresu(p => [...p, { descripcion: '', monto: 0, moneda: 'USD' }]);
+  const removePresuItem = (i) => setPresu(p => p.filter((_, idx) => idx !== i));
+
+  const handleDescargar = async () => {
+    const doc = await construirOrdenServicioDoc({
+      reserva, briefings, itinerarios, notas, presupuestoItems,
+      paraGuia,
+      notasOverride: notasLineas,
+      presupuestoOverride: presupuesto,
+    });
+    const sufijo = paraGuia ? '-Guia' : '';
+    doc.save(`Orden-Salida-${reserva.codigo_reserva || reserva.id}${sufijo}.pdf`);
+  };
+
+  if (!open) return null;
+
+  return (
+    <Modal open={open} onClose={onClose} title="Vista previa — Orden de servicio" size="full">
+      <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4">
+        {/* Panel editable */}
+        <div className="space-y-4">
+          <label className="flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-xl cursor-pointer"
+            style={{ background: 'var(--card-2)', border: '1px solid var(--border)' }}>
+            <input type="checkbox" checked={paraGuia} onChange={e => setParaGuia(e.target.checked)} />
+            Vista para guía (sin presupuesto ni pagos a staff)
+          </label>
+
+          <div>
+            <label className="label">Notas (una por línea)</label>
+            <textarea rows={6} className="input-field resize-none text-xs"
+              value={notasLineas.join('\n')}
+              onChange={e => setNotas(e.target.value.split('\n'))} />
+          </div>
+
+          {!paraGuia && (
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="label mb-0">Presupuesto</label>
+                <button type="button" onClick={addPresuItem}
+                  className="flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg"
+                  style={{ background: 'var(--brand)', color: 'white' }}>
+                  <Plus size={12} /> Agregar
+                </button>
+              </div>
+              <div className="space-y-2">
+                {presupuesto.map((it, i) => (
+                  <div key={i} className="flex gap-1.5 items-center">
+                    <input className="input-field text-xs flex-1" placeholder="Descripción"
+                      value={it.descripcion} onChange={e => setPresuItem(i, 'descripcion', e.target.value)} />
+                    <input type="number" step="0.01" className="input-field text-xs" style={{ width: '5.5rem' }}
+                      value={it.monto} onChange={e => setPresuItem(i, 'monto', Number(e.target.value))} />
+                    <select className="input-field text-xs" style={{ width: '4.5rem' }}
+                      value={it.moneda} onChange={e => setPresuItem(i, 'moneda', e.target.value)}>
+                      <option value="USD">USD</option>
+                      <option value="PEN">PEN</option>
+                    </select>
+                    <button type="button" onClick={() => removePresuItem(i)} style={{ color: '#ef4444' }}>
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <button type="button" onClick={handleDescargar}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold"
+            style={{ background: 'var(--brand)', color: 'white' }}>
+            <Download size={15} /> Descargar PDF
+          </button>
+        </div>
+
+        {/* Preview del PDF */}
+        <div className="relative rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)', minHeight: 500 }}>
+          {loading && (
+            <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.6)' }}>
+              <Spinner />
+            </div>
+          )}
+          {blobUrl && (
+            <iframe title="Vista previa orden de servicio" src={blobUrl}
+              style={{ width: '100%', height: '75vh', border: 'none' }} />
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+}

@@ -40,6 +40,18 @@ async function getReservaData(reservaId) {
   return rows[0] || null;
 }
 
+// Servicios adicionales de la reserva (ej. renta de bastones) — se listan como
+// líneas propias del invoice en vez de quedar solo sumados al total.
+async function getExtras(reservaId) {
+  const { rows } = await query(`
+    SELECT nombre, cantidad, precio_unitario_usd
+    FROM cusi.reserva_servicios_adicionales
+    WHERE reserva_id = $1
+    ORDER BY id
+  `, [reservaId]);
+  return rows;
+}
+
 const usd = n => Number(n || 0);
 
 const WHITE = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
@@ -80,9 +92,14 @@ async function generarInvoiceExcel(reservaId, overrides = {}) {
   const to     = overrides.to || {};
 
   const defaultDesc = row.nombre_servicio_snap || row.servicio_nombre || 'Servicio turístico';
-  const lineItems   = (overrides.lineItems && overrides.lineItems.length > 0)
-    ? overrides.lineItems
-    : [{ qty: row.n_pasajeros || 1, description: defaultDesc, unit_price: usd(row.precio_usd_por_pax) }];
+  let lineItems = overrides.lineItems;
+  if (!lineItems || lineItems.length === 0) {
+    const extras = await getExtras(reservaId);
+    lineItems = [
+      { qty: row.n_pasajeros || 1, description: defaultDesc, unit_price: usd(row.precio_usd_por_pax) },
+      ...extras.map(e => ({ qty: e.cantidad, description: e.nombre, unit_price: usd(e.precio_unitario_usd) })),
+    ];
+  }
 
   const invoiceDate = new Date(row.fecha_inicio || Date.now());
   const fechaStr    = invoiceDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });

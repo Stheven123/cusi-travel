@@ -111,7 +111,7 @@ const TIPO_LABEL = {
 };
 
 // ─── Construye las filas etiqueta/valor del bloque superior ────────────
-const buildHeaderRows = (reserva, briefings, itinerarios) => {
+const buildHeaderRows = (reserva, itinerarios) => {
   const rows = [];
   const detalles = reserva.detalles || [];
   const pax = reserva.pasajeros || [];
@@ -122,15 +122,6 @@ const buildHeaderRows = (reserva, briefings, itinerarios) => {
   }
   rows.push(['TOUR', reserva.servicio_nombre || reserva.nombre_servicio_snap || '—']);
   rows.push(['DATE', fmtRangoFechas(reserva.fecha_inicio, reserva.fecha_fin)]);
-
-  if (briefings?.length) {
-    const inicioISO = (reserva.fecha_inicio || '').slice(0, 10);
-    const b = briefings.filter(x => x.fecha <= inicioISO).sort((a, c) => c.fecha.localeCompare(a.fecha))[0] || briefings[0];
-    const partes = [fmtFechaLarga(b.fecha)];
-    if (b.hora) partes.push(`a las ${b.hora.slice(0, 5)} hrs`);
-    if (b.lugar) partes.push(`en ${b.lugar}`);
-    rows.push(['Briefing', partes.join(' ') + (b.persona_encargada ? `   —   ${b.persona_encargada}` : '')]);
-  }
 
   const hoteles = byTipo('HOTEL');
   hoteles.forEach((d, i) => {
@@ -184,15 +175,18 @@ const buildHeaderRows = (reserva, briefings, itinerarios) => {
 
   const transportes = byTipo('TRANSPORTE');
   transportes.forEach((d, i) => {
-    rows.push([transportes.length > 1 ? `Transporte ${i + 1}` : 'Transporte', `${d.proveedor_nombre || ''}${d.descripcion ? ' — ' + d.descripcion : ''}`]);
+    const hora = d.hora_inicio ? ` — ${d.hora_inicio.slice(0, 5)}` : '';
+    rows.push([transportes.length > 1 ? `Transporte ${i + 1}` : 'Transporte', `${d.proveedor_nombre || ''}${d.descripcion ? ' — ' + d.descripcion : ''}${hora}`]);
   });
 
   return rows;
 };
 
-// ─── Sección de notas: RUC, pagos a staff, observaciones + notas de la reserva ──
-const buildNotas = (reserva, agencia, notas = []) => {
-  const lineas = (reserva.observaciones || '').split('\n').map(s => s.trim()).filter(Boolean);
+// ─── Sección de notas: RUC, pagos a staff, notas de operaciones + notas de la reserva ──
+// (reserva.observaciones queda excluido a propósito: es información interna,
+// nunca debe imprimirse en la orden de servicio — ver ReservaForm.jsx)
+export const buildNotas = (reserva, agencia, notas = [], paraGuia = false) => {
+  const lineas = [];
   notas.forEach(n => { if (n.texto?.trim()) lineas.push(n.texto.trim()); });
   const detalles = reserva.detalles || [];
 
@@ -200,24 +194,44 @@ const buildNotas = (reserva, agencia, notas = []) => {
     lineas.push(`${TIPO_LABEL[d.tipo_servicio] || d.tipo_servicio}${d.proveedor_nombre ? ` (${d.proveedor_nombre})` : ''}: ${d.notas.trim()}`);
   });
 
-  const staffPagos = detalles.filter(d => ['GUIA', 'COCINERO', 'PORTER'].includes(d.tipo_servicio) && Number(d.costo_total_usd) > 0);
-  if (staffPagos.length) {
-    const texto = staffPagos
-      .map(d => `${fmtMoneda(d.costo_total_usd, d.moneda)} ${(TIPO_LABEL[d.tipo_servicio] || '').toLowerCase()}${d.proveedor_nombre ? ` (${d.proveedor_nombre})` : ''}`)
-      .join(' + ');
-    lineas.push(`Pago: ${texto}`);
+  if (!paraGuia) {
+    const staffPagos = detalles.filter(d => ['GUIA', 'COCINERO', 'PORTER'].includes(d.tipo_servicio) && Number(d.costo_total_usd) > 0);
+    if (staffPagos.length) {
+      const texto = staffPagos
+        .map(d => `${fmtMoneda(d.costo_total_usd, d.moneda)} ${(TIPO_LABEL[d.tipo_servicio] || '').toLowerCase()}${d.proveedor_nombre ? ` (${d.proveedor_nombre})` : ''}`)
+        .join(' + ');
+      lineas.push(`Pago: ${texto}`);
+    }
   }
 
-  if (agencia.ruc) {
+  if (!paraGuia && agencia.ruc) {
     lineas.push(`Pedir FACTURA para las compras con RUC: ${agencia.ruc}${agencia.razon_social ? ` ${agencia.razon_social}` : ''}.`);
   }
 
   return lineas;
 };
 
+// ─── Sección de briefings: lista TODOS los briefings de la reserva (antes solo
+// se imprimía uno, elegido con una comparación de fechas defectuosa) ──────────
+export const buildBriefings = (briefings = []) => {
+  return briefings
+    .slice()
+    .sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''))
+    .map(b => {
+      const partes = [fmtFechaLarga(b.fecha)];
+      if (b.hora) partes.push(`${b.hora.slice(0, 5)} hrs`);
+      if (b.hora_salida) partes.push(`salida ${b.hora_salida.slice(0, 5)} hrs`);
+      if (b.lugar) partes.push(`en ${b.lugar}`);
+      let linea = partes.join(' — ');
+      if (b.persona_encargada) linea += `   —   ${b.persona_encargada}`;
+      if (b.notas?.trim()) linea += `\n${b.notas.trim()}`;
+      return linea;
+    });
+};
+
 // ─── Presupuesto: líneas manuales de la reserva + costos operativos
 // (excluye pagos de staff, ya listados en Notas) ────────────────────────
-const buildPresupuesto = (reserva, presupuestoItems = []) => {
+export const buildPresupuesto = (reserva, presupuestoItems = []) => {
   const manuales = presupuestoItems.map(it => ({
     descripcion: it.descripcion,
     monto: Number(it.monto),
@@ -247,7 +261,12 @@ const ensureSpace = (doc, y, needed) => {
   return y;
 };
 
-export const generarOrdenServicioPDF = async ({ reserva, briefings = [], itinerarios = [], notas: notasReserva = [], presupuestoItems = [] }) => {
+// ── Construye el documento y lo devuelve (sin guardarlo) — permite mostrar
+// una vista previa antes de descargar, o generar la variante "para guía". ──
+export const construirOrdenServicioDoc = async ({
+  reserva, briefings = [], itinerarios = [], notas: notasReserva = [], presupuestoItems = [],
+  paraGuia = false, notasOverride = null, presupuestoOverride = null,
+}) => {
   const agencia = getAgenciaData();
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   let y = 12;
@@ -263,7 +282,7 @@ export const generarOrdenServicioPDF = async ({ reserva, briefings = [], itinera
   y += 12;
 
   // ── Bloque de datos clave (etiqueta / valor) ──
-  const headerRows = buildHeaderRows(reserva, briefings, itinerarios);
+  const headerRows = buildHeaderRows(reserva, itinerarios);
   autoTable(doc, {
     startY: y,
     margin: { left: ML, right: MR },
@@ -362,8 +381,23 @@ export const generarOrdenServicioPDF = async ({ reserva, briefings = [], itinera
     y = doc.lastAutoTable.finalY + 5;
   }
 
+  // ── Briefings (todos, no solo el "más cercano") ──
+  const briefingsLineas = buildBriefings(briefings);
+  if (briefingsLineas.length) {
+    y = ensureSpace(doc, y, 16);
+    y = sectionHeader(doc, 'BRIEFINGS', y);
+    autoTable(doc, {
+      startY: y,
+      margin: { left: ML, right: MR },
+      theme: 'grid',
+      styles: { font: 'helvetica', fontSize: 8, cellPadding: 2, lineColor: BORDER, lineWidth: 0.2, textColor: TXTDK },
+      body: briefingsLineas.map(n => [n]),
+    });
+    y = doc.lastAutoTable.finalY + 5;
+  }
+
   // ── Notas ──
-  const notasLineas = buildNotas(reserva, agencia, notasReserva);
+  const notasLineas = notasOverride ?? buildNotas(reserva, agencia, notasReserva, paraGuia);
   if (notasLineas.length) {
     y = ensureSpace(doc, y, 16);
     y = sectionHeader(doc, 'NOTAS', y);
@@ -378,32 +412,43 @@ export const generarOrdenServicioPDF = async ({ reserva, briefings = [], itinera
   }
 
   // ── Presupuesto (líneas manuales de la reserva + costos operativos, por moneda) ──
-  const presupuesto = buildPresupuesto(reserva, presupuestoItems);
-  if (presupuesto.length) {
-    y = ensureSpace(doc, y, 16);
-    y = sectionHeader(doc, 'PRESUPUESTO', y);
+  // Se omite por completo en la variante "para guía": el guía no debe ver costos.
+  if (!paraGuia) {
+    const presupuesto = presupuestoOverride ?? buildPresupuesto(reserva, presupuestoItems);
+    if (presupuesto.length) {
+      y = ensureSpace(doc, y, 16);
+      y = sectionHeader(doc, 'PRESUPUESTO', y);
 
-    const totales = {};
-    presupuesto.forEach(it => { totales[it.moneda] = (totales[it.moneda] || 0) + it.monto; });
+      const totales = {};
+      presupuesto.forEach(it => { totales[it.moneda] = (totales[it.moneda] || 0) + it.monto; });
 
-    const body = presupuesto.map(it => [it.descripcion, fmtMoneda(it.monto, it.moneda)]);
-    Object.entries(totales).forEach(([moneda, total], i) => {
-      body.push([{ content: Object.keys(totales).length > 1 ? `TOTAL ${moneda}` : 'TOTAL', styles: { fontStyle: 'bold', halign: 'right' } },
-        { content: fmtMoneda(total, moneda), styles: { fontStyle: 'bold' } }]);
-    });
-
-    if (body.length) {
-      autoTable(doc, {
-        startY: y,
-        margin: { left: ML, right: MR },
-        theme: 'grid',
-        styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 2, lineColor: BORDER, lineWidth: 0.2, textColor: TXTDK },
-        columnStyles: { 1: { cellWidth: 30, halign: 'right' } },
-        body,
+      const body = presupuesto.map(it => [it.descripcion, fmtMoneda(it.monto, it.moneda)]);
+      Object.entries(totales).forEach(([moneda, total], i) => {
+        body.push([{ content: Object.keys(totales).length > 1 ? `TOTAL ${moneda}` : 'TOTAL', styles: { fontStyle: 'bold', halign: 'right' } },
+          { content: fmtMoneda(total, moneda), styles: { fontStyle: 'bold' } }]);
       });
-      y = doc.lastAutoTable.finalY + 5;
+
+      if (body.length) {
+        autoTable(doc, {
+          startY: y,
+          margin: { left: ML, right: MR },
+          theme: 'grid',
+          styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 2, lineColor: BORDER, lineWidth: 0.2, textColor: TXTDK },
+          columnStyles: { 1: { cellWidth: 30, halign: 'right' } },
+          body,
+        });
+        y = doc.lastAutoTable.finalY + 5;
+      }
     }
   }
 
-  doc.save(`Orden-Salida-${reserva.codigo_reserva || reserva.id}.pdf`);
+  return doc;
+};
+
+// ── Wrapper: construye el documento y lo descarga directamente ──
+export const generarOrdenServicioPDF = async (params) => {
+  const doc = await construirOrdenServicioDoc(params);
+  const sufijo = params.paraGuia ? '-Guia' : '';
+  doc.save(`Orden-Salida-${params.reserva.codigo_reserva || params.reserva.id}${sufijo}.pdf`);
+  return doc;
 };

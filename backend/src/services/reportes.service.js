@@ -1,4 +1,5 @@
 const { query }  = require('../config/database');
+const ExcelJS    = require('exceljs');
 
 const getKPIs = async () => {
   const hoy    = new Date();
@@ -77,6 +78,27 @@ const reporteProveedores = async (filtros = {}) => {
   return rows;
 };
 
+// Genera el reporte de proveedores como archivo Excel (.xlsx) editable, con
+// las mismas columnas/filtros que la vista JSON — reemplaza el "imprimir"
+// (window.print) que era la única salida disponible hasta ahora.
+const reporteProveedoresExcel = async (filtros = {}) => {
+  const rows   = await reporteProveedores(filtros);
+  const campos = filtros.campos?.length ? filtros.campos : (rows[0] ? Object.keys(rows[0]) : []);
+  const labels = filtros.labels || {};
+
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Cusi Travel'; wb.created = new Date();
+  const ws = wb.addWorksheet('Reporte proveedores');
+
+  ws.columns = campos.map(c => ({ header: labels[c] || c, key: c, width: 20 }));
+  ws.getRow(1).font = { bold: true };
+  ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE9ECF5' } };
+
+  rows.forEach(r => ws.addRow(campos.reduce((acc, c) => { acc[c] = r[c] ?? ''; return acc; }, {})));
+
+  return wb;
+};
+
 const resumenMensual = async (anio, mes) => {
   const { rows } = await query(
     `SELECT
@@ -135,4 +157,4 @@ const proximasReservas = async (dias = 7) => {
   return rows;
 };
 
-module.exports = { getKPIs, reporteProveedores, resumenMensual, proximasReservas };
+module.exports = { getKPIs, reporteProveedores, reporteProveedoresExcel, resumenMensual, proximasReservas };

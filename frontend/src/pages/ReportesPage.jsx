@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BarChart3, Printer, Hash, DollarSign, Users, FileSpreadsheet, Search, Download, X, Plus, Trash2, FolderOpen, CreditCard, AlertTriangle } from 'lucide-react';
 import FiltrosReporte from '../components/reportes/FiltrosReporte';
@@ -6,6 +6,7 @@ import Alert from '../components/ui/Alert';
 import { PageLoader } from '../components/ui/Spinner';
 import { fmtMoneda, fmtFecha } from '../utils/formatters';
 import { reservasApi } from '../api/reservas.api';
+import { reportesApi } from '../api/reportes.api';
 import client from '../api/client';
 import { getAgenciaData } from './AgenciaPage';
 
@@ -24,6 +25,8 @@ const LABELS = {
   notas_proveedor:'Notas', notas:'Notas', tipo_servicio:'Tipo servicio',
   contacto_nombre:'Contacto', contacto_email:'Email prov.', contacto_telefono:'Tel. prov.',
   idioma_servicio:'Idioma', servicio_turistico:'Servicio turístico',
+  briefing_fecha:'Fecha briefing', briefing_hora:'Hora briefing', briefing_lugar:'Lugar briefing',
+  briefing_persona_encargada:'Encargado briefing', briefing_notas:'Notas briefing',
 };
 
 /* ── Summary KPI strip ─────────────────────────────────────────── */
@@ -113,6 +116,22 @@ function InvoiceModal({ reserva, onClose }) {
   }]);
   const [desc, setDesc]   = useState(false);
   const [error, setError] = useState('');
+
+  // Pre-poblar con los servicios adicionales de la reserva (ej. renta de
+  // bastones) — antes solo se veía una línea con el precio base del paquete.
+  useEffect(() => {
+    reservasApi.getById(reserva.id).then(r => {
+      const extras = r.data?.servicios_adicionales || [];
+      if (!extras.length) return;
+      setItems(prev => [
+        ...prev,
+        ...extras.map(e => ({
+          qty: e.cantidad, description: e.nombre, unit_price: Number(e.precio_unitario_usd || 0),
+        })),
+      ]);
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reserva.id]);
 
   const fTo   = (k, v) => setTo(p => ({ ...p, [k]: v }));
   const fItem = (i, k, v) => setItems(p => { const n = [...p]; n[i] = { ...n[i], [k]: v }; return n; });
@@ -584,14 +603,30 @@ export default function ReportesPage() {
   const [tab, setTab]           = useState('reportes');
   const [rows, setRows]         = useState([]);
   const [campos, setCampos]     = useState([]);
+  const [filtrosActivos, setFiltrosActivos] = useState({});
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
   const [ejecutado, setEjecutado] = useState(false);
+  const [descargandoExcel, setDescargandoExcel] = useState(false);
 
-  const handleResultados = (data, camposArr) => {
+  const handleResultados = (data, camposArr, filtros) => {
     setRows(data || []);
     setCampos(camposArr || []);
+    setFiltrosActivos(filtros || {});
     setEjecutado(true);
+  };
+
+  const descargarExcel = async () => {
+    setDescargandoExcel(true);
+    try {
+      const blob = await reportesApi.reporteProveedoresExcel({ ...filtrosActivos, labels: LABELS });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'Reporte-Proveedores.xlsx';
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a); URL.revokeObjectURL(url);
+    } catch { setError('No se pudo generar el Excel'); }
+    finally { setDescargandoExcel(false); }
   };
 
   const cols = campos.length ? campos : Object.keys(LABELS);
@@ -643,9 +678,14 @@ export default function ReportesPage() {
                   <BarChart3 size={16} style={{ color: 'var(--brand)' }} />
                   <span><strong style={{ color: 'var(--text)' }}>{rows.length}</strong> resultados</span>
                 </div>
-                <button onClick={() => window.print()} className="btn-secondary">
-                  <Printer size={15} /> Imprimir
-                </button>
+                <div className="flex items-center gap-2">
+                  <button onClick={descargarExcel} disabled={descargandoExcel} className="btn-primary">
+                    <FileSpreadsheet size={15} /> {descargandoExcel ? 'Generando...' : 'Descargar Excel'}
+                  </button>
+                  <button onClick={() => window.print()} className="btn-secondary">
+                    <Printer size={15} /> Imprimir
+                  </button>
+                </div>
               </div>
 
               {/* Desktop: table */}

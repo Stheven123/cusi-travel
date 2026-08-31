@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   CalendarDays, Clock, MapPin, Users, Globe, TrendingUp,
-  Building2, FileText, Lock, DollarSign, Package,
+  Building2, Lock, DollarSign, Package,
 } from 'lucide-react';
 import { ESTADOS_OPERACION, IDIOMAS } from '../../utils/constants';
 import { serviciosApi } from '../../api/servicios.api';
@@ -23,7 +23,6 @@ const EMPTY = {
   precio_usd_por_pax: 0, total_usd: 0, adelanto_usd: 0, descuento_usd: 0,
   agencia_nombre: '', agencia_codigo: '', operador_nombre: '',
   usuario_guia_id: '',
-  observaciones: '',
 };
 
 /* ── Sección con encabezado visual ── */
@@ -62,8 +61,6 @@ export default function ReservaForm({ inicial, onSave, onCancel }) {
     fecha_inicio: inicial?.fecha_inicio?.slice(0, 10) || '',
     fecha_fin:    inicial?.fecha_fin?.slice(0, 10)    || '',
     usuario_guia_id: inicial?.usuario_guia_id ?? '',
-    observaciones: [inicial?.observaciones, inicial?.notas_internas]
-      .filter(Boolean).join('\n\n') || '',
   });
   const [servicios, setServs] = useState([]);
   const [agencias, setAgencias] = useState([]);
@@ -76,7 +73,6 @@ export default function ReservaForm({ inicial, onSave, onCancel }) {
   const [modoOtraAgencia, setModoOtraAgencia] = useState(false);
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState('');
-  const notasRef              = useRef(null);
 
   useEffect(() => {
     serviciosApi.getAll({}).then(r => setServs(r.data || [])).catch(() => {});
@@ -89,14 +85,6 @@ export default function ReservaForm({ inicial, onSave, onCancel }) {
     }).catch(() => {});
     usuariosApi.getAll().then(r => setGuias((r.data || []).filter(u => u.rol === 'GUIA'))).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  /* Auto-crecer textarea de notas al montar */
-  useEffect(() => {
-    if (notasRef.current) {
-      notasRef.current.style.height = 'auto';
-      notasRef.current.style.height = notasRef.current.scrollHeight + 'px';
-    }
   }, []);
 
   const extrasTotal = (list = extras) =>
@@ -149,9 +137,6 @@ export default function ReservaForm({ inicial, onSave, onCancel }) {
         descuento_usd:      Number(form.descuento_usd),
         fecha_inicio:       form.fecha_inicio || undefined,
         fecha_fin:          form.fecha_fin    || undefined,
-        // El campo "Notas" ya fusiona observaciones + notas_internas en uno solo;
-        // se limpia notas_internas para no volver a fusionarlo (duplicado) en la próxima edición.
-        notas_internas:     '',
         servicios_adicionales: extras
           .filter(e => e.nombre?.trim())
           .map(e => ({
@@ -351,24 +336,6 @@ export default function ReservaForm({ inicial, onSave, onCancel }) {
         <Link to="/agencias" className="text-xs hover:underline inline-block" style={{ color: 'var(--brand)' }}>
           Gestionar agencias →
         </Link>
-      </Section>
-
-      {/* ── Notas ── */}
-      <Section icon={FileText} title="Notas" color="#8892aa">
-        <textarea
-          ref={notasRef}
-          rows={4}
-          value={form.observaciones}
-          onChange={e => {
-            set('observaciones', e.target.value);
-            e.target.style.height = 'auto';
-            e.target.style.height = e.target.scrollHeight + 'px';
-          }}
-          className="input-field resize-none"
-          style={{ overflow: 'hidden', minHeight: '100px' }}
-          placeholder="Requerimientos especiales, notas del tour, observaciones del equipo..."
-        />
-        <p className="text-xs" style={{ color: 'var(--text-3)' }}>Estas notas se incluyen en la Orden de servicio.</p>
       </Section>
 
       {/* ── Acciones ── */}

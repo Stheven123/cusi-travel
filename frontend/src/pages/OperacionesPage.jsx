@@ -53,7 +53,7 @@ const ESTADO_LABEL = {
 
 const DETALLE_EMPTY = {
   proveedor_id: '', tipo_servicio: 'HOTEL', fecha_inicio: '',
-  fecha_fin: '', descripcion: '', cantidad: 1,
+  fecha_fin: '', hora_inicio: '', descripcion: '', cantidad: 1,
   costo_unitario_usd: '', estado: 'SOLICITADO', notas: '',
 };
 
@@ -62,6 +62,7 @@ function DetalleForm({ inicial, proveedores, onSave, onCancel }) {
   const [f, setF] = useState({ ...DETALLE_EMPTY, ...inicial,
     fecha_inicio: inicial?.fecha_inicio?.slice(0,10) || '',
     fecha_fin:    inicial?.fecha_fin?.slice(0,10)    || '',
+    hora_inicio:  inicial?.hora_inicio?.slice(0,5)   || '',
   });
   const [tipoProveedor, setTipoProveedor] = useState('');
   const [err, setErr] = useState('');
@@ -84,6 +85,7 @@ function DetalleForm({ inicial, proveedores, onSave, onCancel }) {
       descripcion:        f.descripcion || undefined,
       fecha_inicio:       f.fecha_inicio || undefined,
       fecha_fin:          f.fecha_fin    || undefined,
+      hora_inicio:        f.tipo_servicio === 'TRANSPORTE' ? (f.hora_inicio || undefined) : undefined,
       cantidad:           Number(f.cantidad) || 1,
       costo_unitario_usd: Number(f.costo_unitario_usd) || 0,
       estado:             f.estado,
@@ -148,6 +150,13 @@ function DetalleForm({ inicial, proveedores, onSave, onCancel }) {
             onChange={e => set('fecha_fin', e.target.value)} />
         </div>
       </div>
+      {f.tipo_servicio === 'TRANSPORTE' && (
+        <div>
+          <label className="label">Hora</label>
+          <input type="time" className="input-field" value={f.hora_inicio}
+            onChange={e => set('hora_inicio', e.target.value)} />
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label">Cantidad</label>

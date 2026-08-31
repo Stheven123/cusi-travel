@@ -8,6 +8,8 @@ const router = Router();
 router.get('/kpis',                          ctrl.getKPIs);
 // Reporte para proveedores con filtros avanzados + selección de campos
 router.post('/proveedores',                  requireRoles(...ROLES.MANAGEMENT), ctrl.reporteProveedores);
+// El mismo reporte, descargado como Excel editable
+router.post('/proveedores/excel',            requireRoles(...ROLES.MANAGEMENT), ctrl.reporteProveedoresExcel);
 // Resumen mensual de reservas
 router.get('/resumen-mensual',               requireRoles(...ROLES.MANAGEMENT), ctrl.resumenMensual);
 // Reservas próximas (widget dashboard)

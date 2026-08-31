@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Plus, Search, RefreshCw, CalendarDays, Wallet, TrendingUp,
+  Plus, Search, RefreshCw, CalendarDays, Wallet, TrendingUp, List, LayoutGrid, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { reservasApi } from '../api/reservas.api';
 import { EstadoOpBadge, EstadoPagoBadge } from '../components/ui/Badge';
@@ -11,6 +11,25 @@ import Alert from '../components/ui/Alert';
 import ReservaForm from '../components/reservas/ReservaForm';
 import { fmtFecha, fmtMoneda, fmtMonedaCorta } from '../utils/formatters';
 import { ESTADOS_OPERACION, ESTADOS_PAGO } from '../utils/constants';
+
+const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+// Agrupa reservas por mes de fecha_inicio (YYYY-MM), más reciente primero.
+const agruparPorMes = (reservas) => {
+  const grupos = new Map();
+  reservas.forEach(r => {
+    const clave = (r.fecha_inicio || '').slice(0, 7);
+    if (!grupos.has(clave)) grupos.set(clave, []);
+    grupos.get(clave).push(r);
+  });
+  return [...grupos.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([clave, items]) => {
+      const [y, m] = clave.split('-');
+      const label = y && m ? `${MESES[Number(m) - 1]} ${y}` : 'Sin fecha';
+      return { clave, label, items };
+    });
+};
 
 const STATUS_CLR = {
   COTIZACION:            '#8892aa',
@@ -100,22 +119,52 @@ function ReservaRow({ r, onClick }) {
   );
 }
 
+// ── Casilla de mes (colapsable) ────────────────────────────────
+function MesCasilla({ label, items, onClickReserva, abiertoInicial = true }) {
+  const [abierto, setAbierto] = useState(abiertoInicial);
+  return (
+    <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--card)', boxShadow: 'var(--shadow-md)' }}>
+      <button onClick={() => setAbierto(a => !a)}
+        className="w-full flex items-center justify-between px-4 py-3 cursor-pointer"
+        style={{ background: 'var(--card-2)', borderBottom: abierto ? '1px solid var(--border)' : 'none' }}>
+        <span className="text-sm font-black capitalize" style={{ color: 'var(--text)' }}>{label}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
+            style={{ background: 'var(--brand-bg)', color: 'var(--brand)' }}>
+            {items.length}
+          </span>
+          {abierto ? <ChevronUp size={16} style={{ color: 'var(--text-3)' }} /> : <ChevronDown size={16} style={{ color: 'var(--text-3)' }} />}
+        </div>
+      </button>
+      {abierto && (
+        <div>
+          {items.map(r => (
+            <ReservaRow key={r.id} r={r} onClick={() => onClickReserva(r)} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ReservasPage() {
   const navigate = useNavigate();
   const [reservas, setReservas] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState('');
   const [modal, setModal]       = useState(false);
+  const [vista, setVista]       = useState('meses'); // 'meses' | 'lista'
   const [filtros, setFiltros]   = useState({
-    busqueda: '', estado_operacion: '', estado_pago: '',
+    busqueda: '', pasajero: '', estado_operacion: '', estado_pago: '',
     fecha_desde: '', fecha_hasta: '',
   });
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = {};
+      const params = { limit: 500 };
       if (filtros.busqueda)         params.busqueda         = filtros.busqueda;
+      if (filtros.pasajero)         params.pasajero         = filtros.pasajero;
       if (filtros.estado_operacion) params.estado_operacion = filtros.estado_operacion;
       if (filtros.estado_pago)      params.estado_pago      = filtros.estado_pago;
       if (filtros.fecha_desde)      params.fecha_desde      = filtros.fecha_desde;
@@ -135,7 +184,7 @@ export default function ReservasPage() {
   };
 
   const limpiarFiltros = () => setFiltros({
-    busqueda: '', estado_operacion: '', estado_pago: '',
+    busqueda: '', pasajero: '', estado_operacion: '', estado_pago: '',
     fecha_desde: '', fecha_hasta: '',
   });
 
@@ -153,8 +202,10 @@ export default function ReservasPage() {
     return `$${Math.round(v)}`;
   };
 
-  const hayFiltros = filtros.busqueda || filtros.estado_operacion || filtros.estado_pago
+  const hayFiltros = filtros.busqueda || filtros.pasajero || filtros.estado_operacion || filtros.estado_pago
     || filtros.fecha_desde || filtros.fecha_hasta;
+
+  const gruposPorMes = agruparPorMes(reservas);
 
   return (
     <div className="space-y-4">
@@ -237,7 +288,7 @@ export default function ReservasPage() {
 
       {/* ── Filtros ── */}
       <div className="rounded-2xl p-4" style={{ background: 'var(--card)', boxShadow: 'var(--shadow-md)' }}>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
           <div className="col-span-2 sm:col-span-3 lg:col-span-2">
             <label className="label">Búsqueda</label>
             <div className="relative">
@@ -247,6 +298,18 @@ export default function ReservasPage() {
                 placeholder="Código, agencia, servicio..."
                 value={filtros.busqueda}
                 onChange={e => setFiltros(p => ({ ...p, busqueda: e.target.value }))}
+              />
+            </div>
+          </div>
+          <div className="col-span-2 sm:col-span-3 lg:col-span-2">
+            <label className="label">Buscar pasajero</label>
+            <div className="relative">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-3)' }} />
+              <input
+                className="input-field pl-9"
+                placeholder="Nombre, apellido o pasaporte..."
+                value={filtros.pasajero}
+                onChange={e => setFiltros(p => ({ ...p, pasajero: e.target.value }))}
               />
             </div>
           </div>
@@ -284,10 +347,26 @@ export default function ReservasPage() {
 
         <div className="flex flex-wrap items-center justify-between gap-3 mt-3 pt-3"
           style={{ borderTop: '1px solid var(--border)' }}>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button onClick={load} className="btn-secondary gap-1.5 text-sm">
               <RefreshCw size={14} /> Actualizar
             </button>
+            <div className="flex rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+              <button onClick={() => setVista('meses')}
+                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold cursor-pointer"
+                style={vista === 'meses'
+                  ? { background: 'var(--brand)', color: 'white' }
+                  : { background: 'var(--card)', color: 'var(--text-2)' }}>
+                <LayoutGrid size={13} /> Por mes
+              </button>
+              <button onClick={() => setVista('lista')}
+                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold cursor-pointer"
+                style={vista === 'lista'
+                  ? { background: 'var(--brand)', color: 'white' }
+                  : { background: 'var(--card)', color: 'var(--text-2)' }}>
+                <List size={13} /> Lista
+              </button>
+            </div>
             {hayFiltros && (
               <button onClick={limpiarFiltros} className="btn-ghost text-sm">
                 Limpiar filtros
@@ -312,6 +391,14 @@ export default function ReservasPage() {
               Limpiar filtros
             </button>
           )}
+        </div>
+      ) : vista === 'meses' ? (
+        <div className="space-y-3">
+          {gruposPorMes.map((g, i) => (
+            <MesCasilla key={g.clave} label={g.label} items={g.items}
+              abiertoInicial={i === 0}
+              onClickReserva={r => navigate(`/reservas/${r.id}`)} />
+          ))}
         </div>
       ) : (
         <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--card)', boxShadow: 'var(--shadow-md)' }}>

@@ -11,6 +11,7 @@ const filtroProveedorSchema = z.object({
   estado:          z.string().optional(),
   reserva_ids:     z.array(z.number().int().positive()).optional(), // selección por checkboxes
   campos:          z.array(z.string()).optional(),                  // campos a incluir en el reporte
+  labels:          z.record(z.string()).optional(),                 // etiquetas legibles para los encabezados del Excel
 });
 
 const getKPIs = async (_req, res, next) => {
@@ -25,6 +26,17 @@ const reporteProveedores = async (req, res, next) => {
     const filtros = filtroProveedorSchema.parse(req.body);
     const data    = await service.reporteProveedores(filtros);
     res.json({ ok: true, data });
+  } catch (err) { next(err); }
+};
+
+const reporteProveedoresExcel = async (req, res, next) => {
+  try {
+    const filtros = filtroProveedorSchema.parse(req.body);
+    const workbook = await service.reporteProveedoresExcel(filtros);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="Reporte-Proveedores.xlsx"');
+    await workbook.xlsx.write(res);
+    res.end();
   } catch (err) { next(err); }
 };
 
@@ -100,4 +112,4 @@ const generarCierreReserva = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-module.exports = { getKPIs, reporteProveedores, resumenMensual, proximas, generarInvoice, generarCierre, generarCierreReserva };
+module.exports = { getKPIs, reporteProveedores, reporteProveedoresExcel, resumenMensual, proximas, generarInvoice, generarCierre, generarCierreReserva };

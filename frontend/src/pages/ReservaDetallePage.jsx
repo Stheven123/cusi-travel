@@ -23,11 +23,11 @@ import Modal from '../components/ui/Modal';
 import Alert from '../components/ui/Alert';
 import ReservaForm from '../components/reservas/ReservaForm';
 import PasajeroForm from '../components/reservas/PasajeroForm';
+import OrdenServicioPreviewModal from '../components/reservas/OrdenServicioPreviewModal';
 import { fmtFecha, fmtFechaHora, fmtMoneda } from '../utils/formatters';
-import { generarOrdenServicioPDF } from '../utils/ordenServicioPDF';
 import { ESTADOS_OPERACION, ESTADOS_DETALLE_OPERACION, TIPOS_DOCUMENTO } from '../utils/constants';
 
-const TABS = ['Info', 'Pasajeros', 'Operaciones', 'Tareas', 'Briefings', 'Notas', 'Presupuesto'];
+const TABS = ['Info', 'Pasajeros', 'Operaciones', 'Tareas', 'Briefings', 'Notas', 'Información interna', 'Presupuesto'];
 
 const ESTADO_DETALLE_CLR = {
   PENDIENTE:    '#f59e0b',
@@ -182,8 +182,16 @@ function PaxTable({ pasajeros, onEdit, onDelete }) {
 /* ── Checklist de tareas de una operación ──────────────────────── */
 const TAREA_OP_EMPTY = { titulo: '', fecha: '', monto: '', persona_encargada: '' };
 
-function TareaOperacionForm({ onSave, onCancel }) {
-  const [f, setF] = useState(TAREA_OP_EMPTY);
+function TareaOperacionForm({ inicial, onSave, onCancel }) {
+  const [f, setF] = useState({
+    ...TAREA_OP_EMPTY,
+    ...(inicial ? {
+      titulo: inicial.titulo || '',
+      fecha: inicial.fecha ? inicial.fecha.slice(0, 10) : '',
+      monto: inicial.monto ?? '',
+      persona_encargada: inicial.persona_encargada || '',
+    } : {}),
+  });
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
   const submit = (e) => {
     e.preventDefault();
@@ -197,7 +205,7 @@ function TareaOperacionForm({ onSave, onCancel }) {
   };
   return (
     <form onSubmit={submit} className="flex flex-wrap items-end gap-2 p-2 rounded-xl" style={{ background: 'var(--card-2)' }}>
-      <input className="input-field text-xs flex-1 min-w-[160px]" placeholder="Nueva tarea..." value={f.titulo}
+      <input className="input-field text-xs flex-1 min-w-[160px]" placeholder={inicial ? 'Título' : 'Nueva tarea...'} value={f.titulo}
         onChange={e => set('titulo', e.target.value)} autoFocus />
       <input type="date" className="input-field text-xs" style={{ width: '9.5rem' }} value={f.fecha}
         onChange={e => set('fecha', e.target.value)} />
@@ -218,6 +226,7 @@ function TareaOperacionForm({ onSave, onCancel }) {
 function OperacionChecklist({ detalleId }) {
   const [tareas, setTareas] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [editandoId, setEditandoId] = useState(null);
   const [err, setErr] = useState('');
 
   const load = useCallback(async () => {
@@ -243,6 +252,11 @@ function OperacionChecklist({ detalleId }) {
     catch { setErr('No se pudo agregar la tarea'); }
   };
 
+  const guardarEdicion = async (data) => {
+    try { await proveedoresApi.updateTareaOperacion(editandoId, data); setEditandoId(null); load(); }
+    catch { setErr('No se pudo actualizar la tarea'); }
+  };
+
   if (tareas === null) return <p className="text-xs px-2 py-1" style={{ color: 'var(--text-3)' }}>Cargando checklist...</p>;
 
   return (
@@ -252,6 +266,9 @@ function OperacionChecklist({ detalleId }) {
         <p className="text-xs px-2" style={{ color: 'var(--text-3)' }}>Sin tareas en el checklist.</p>
       )}
       {tareas.map(t => (
+        editandoId === t.id ? (
+          <TareaOperacionForm key={t.id} inicial={t} onSave={guardarEdicion} onCancel={() => setEditandoId(null)} />
+        ) : (
         <div key={t.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs" style={{ background: 'var(--card-2)' }}>
           <button type="button" onClick={() => toggle(t)} className="flex-shrink-0 cursor-pointer"
             style={{ color: t.completada ? '#10b981' : 'var(--text-3)' }}>
@@ -268,10 +285,14 @@ function OperacionChecklist({ detalleId }) {
               {t.persona_encargada}
             </span>
           )}
+          <button type="button" onClick={() => setEditandoId(t.id)} className="flex-shrink-0 cursor-pointer" style={{ color: 'var(--text-2)' }}>
+            <Edit2 size={12} />
+          </button>
           <button type="button" onClick={() => remove(t.id)} className="flex-shrink-0 cursor-pointer" style={{ color: '#ef4444' }}>
             <Trash2 size={12} />
           </button>
         </div>
+        )
       ))}
       {showForm ? (
         <TareaOperacionForm onSave={add} onCancel={() => setShowForm(false)} />
@@ -281,6 +302,35 @@ function OperacionChecklist({ detalleId }) {
           <Plus size={12} /> Agregar tarea
         </button>
       )}
+    </div>
+  );
+}
+
+/* ── Información interna: solo para el equipo, nunca sale en la orden de servicio ── */
+function InformacionInternaPanel({ valorInicial, onSave }) {
+  const [texto, setTexto] = useState(valorInicial || '');
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+
+  const guardar = async () => {
+    setSaving(true);
+    try { await onSave(texto); setDirty(false); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-2xl p-3 text-xs" style={{ background: 'var(--warning-bg, #fef3c7)', color: '#92400e' }}>
+        Esta información es solo para el equipo de Cusi Travel. Nunca aparece en la orden de servicio ni es visible para clientes o proveedores.
+      </div>
+      <textarea rows={10} className="input-field resize-none" value={texto}
+        onChange={e => { setTexto(e.target.value); setDirty(true); }}
+        placeholder="Notas internas del equipo (no se imprimen en ningún documento)..." />
+      <div className="flex justify-end">
+        <button type="button" onClick={guardar} disabled={saving || !dirty} className="btn-primary">
+          {saving ? 'Guardando...' : 'Guardar'}
+        </button>
+      </div>
     </div>
   );
 }
@@ -394,7 +444,7 @@ function TareaRow({ t, navigate }) {
 
 /* ── Detalle (operation) form — supports create and edit ─────── */
 const DETALLE_EMPTY = {
-  proveedor_id: '', tipo_servicio: '', fecha_inicio: '', fecha_fin: '',
+  proveedor_id: '', tipo_servicio: '', fecha_inicio: '', fecha_fin: '', hora_inicio: '',
   descripcion: '', cantidad: 1, costo_unitario_usd: '', moneda: 'USD',
   estado: 'PENDIENTE', notas: '',
   tipo_documento: '', serie_documento: '', numero_documento: '', enlace_drive: '',
@@ -407,6 +457,7 @@ function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
     proveedor_id:  inicial?.proveedor_id  ?? '',
     fecha_inicio:  inicial?.fecha_inicio?.slice(0, 10) ?? '',
     fecha_fin:     inicial?.fecha_fin?.slice(0, 10)   ?? '',
+    hora_inicio:   inicial?.hora_inicio?.slice(0, 5)  ?? '',
   });
   const [err, setErr]       = useState('');
   const [saving, setSaving] = useState(false);
@@ -446,6 +497,7 @@ function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
         tipo_servicio:      f.tipo_servicio,
         fecha_inicio:       f.fecha_inicio,
         fecha_fin:          f.fecha_fin   || undefined,
+        hora_inicio:        f.tipo_servicio === 'TRANSPORTE' ? (f.hora_inicio || undefined) : undefined,
         descripcion:        f.descripcion  || undefined,
         cantidad:           Number(f.cantidad) || 1,
         costo_unitario_usd: Number(f.costo_unitario_usd) || 0,
@@ -518,6 +570,13 @@ function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
             onChange={e => set('fecha_fin', e.target.value)} />
         </div>
       </div>
+      {f.tipo_servicio === 'TRANSPORTE' && (
+        <div>
+          <label className="label">Hora</label>
+          <input type="time" className="input-field" value={f.hora_inicio}
+            onChange={e => set('hora_inicio', e.target.value)} />
+        </div>
+      )}
       <div>
         <label className="label">Descripción</label>
         <textarea rows={2} className="input-field resize-none" value={f.descripcion}
@@ -543,7 +602,7 @@ function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
         </div>
       </div>
       <div>
-        <label className="label">Notas internas</label>
+        <label className="label">Notas</label>
         <textarea rows={2} className="input-field resize-none" value={f.notas}
           onChange={e => set('notas', e.target.value)} placeholder="Notas para el equipo..." />
       </div>
@@ -945,6 +1004,13 @@ export default function ReservaDetallePage() {
     load();
   };
 
+  // Información interna — visible solo para el equipo, nunca en la orden de servicio.
+  const handleSaveNotasInternas = async (notas_internas) => {
+    await reservasApi.update(id, { notas_internas });
+    setReserva(prev => ({ ...prev, notas_internas }));
+    setSuccess('Información interna guardada');
+  };
+
   // Notas — CRUD por fila
   const handleSaveNota = async (data) => {
     if (notaEdit?.id) {
@@ -1053,6 +1119,9 @@ export default function ReservaDetallePage() {
     setBriefings(brfs.data || []);
   };
 
+  const [ordenPreviewOpen, setOrdenPreviewOpen] = useState(false);
+  const [ordenItinerarios, setOrdenItinerarios] = useState([]);
+
   const handleGenerarOrdenServicio = async () => {
     try {
       let itinerarios = [];
@@ -1062,7 +1131,8 @@ export default function ReservaDetallePage() {
           itinerarios = r.data?.itinerarios || [];
         } catch { /* si no se puede cargar el itinerario, se genera sin esa sección */ }
       }
-      await generarOrdenServicioPDF({ reserva, briefings, itinerarios, notas, presupuestoItems });
+      setOrdenItinerarios(itinerarios);
+      setOrdenPreviewOpen(true);
     } catch {
       setError('No se pudo generar la orden de salida');
     }
@@ -1477,8 +1547,16 @@ export default function ReservaDetallePage() {
         </div>
       )}
 
-      {/* ── Tab 6: Presupuesto ────────────────────────── */}
+      {/* ── Tab 6: Información interna ───────────────── */}
       {tab === 6 && (
+        <InformacionInternaPanel
+          valorInicial={reserva.notas_internas}
+          onSave={handleSaveNotasInternas}
+        />
+      )}
+
+      {/* ── Tab 7: Presupuesto ────────────────────────── */}
+      {tab === 7 && (
         <div className="space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex flex-wrap gap-2">
@@ -1570,6 +1648,16 @@ export default function ReservaDetallePage() {
           onCancel={() => { setPresupuestoModal(false); setPresupuestoEdit(null); }}
         />
       </Modal>
+
+      <OrdenServicioPreviewModal
+        open={ordenPreviewOpen}
+        onClose={() => setOrdenPreviewOpen(false)}
+        reserva={reserva}
+        briefings={briefings}
+        itinerarios={ordenItinerarios}
+        notas={notas}
+        presupuestoItems={presupuestoItems}
+      />
     </div>
   );
 }

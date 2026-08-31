@@ -226,7 +226,7 @@ function TareaCard({ t, hoy, onCompletar, onEditar }) {
 }
 
 /* ── Tareas de operaciones (checklist por operación de proveedor) ─── */
-function TareaOperacionRow({ t, onToggle, navigate }) {
+function TareaOperacionRow({ t, onToggle, onEditar, navigate }) {
   return (
     <div className={`flex items-center gap-3 py-3 px-4 rounded-2xl relative overflow-hidden ${t.completada ? 'opacity-55' : ''}`}
       style={{ background: 'var(--card)', boxShadow: 'var(--shadow-sm)' }}>
@@ -252,13 +252,69 @@ function TareaOperacionRow({ t, onToggle, navigate }) {
       {t.monto != null && (
         <span className="text-sm font-bold flex-shrink-0" style={{ color: 'var(--text)' }}>{fmtMoneda(t.monto)}</span>
       )}
+      <button onClick={() => onEditar(t)}
+        className="text-xs px-2 py-1.5 rounded-lg transition-colors cursor-pointer flex-shrink-0 min-h-[36px]"
+        style={{ color: 'var(--text-2)' }}>
+        Editar
+      </button>
     </div>
+  );
+}
+
+/* ── Form de edición de tarea de operación ────────────────────── */
+function TareaOperacionForm({ inicial, onSave, onCancel }) {
+  const [f, setF] = useState({
+    titulo: inicial?.titulo || '',
+    fecha: inicial?.fecha ? inicial.fecha.slice(0, 10) : '',
+    monto: inicial?.monto ?? '',
+    persona_encargada: inicial?.persona_encargada || '',
+  });
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSave({
+      titulo: f.titulo,
+      fecha: f.fecha || null,
+      monto: f.monto === '' ? null : Number(f.monto),
+      persona_encargada: f.persona_encargada || null,
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="label">Título <span className="text-red-500">*</span></label>
+        <input required className="input-field" value={f.titulo} onChange={e => set('titulo', e.target.value)} />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">Fecha</label>
+          <input type="date" className="input-field" value={f.fecha} onChange={e => set('fecha', e.target.value)} />
+        </div>
+        <div>
+          <label className="label">Monto</label>
+          <input type="number" step="0.01" className="input-field" value={f.monto}
+            onChange={e => set('monto', e.target.value)} placeholder="0.00" />
+        </div>
+      </div>
+      <div>
+        <label className="label">Persona encargada</label>
+        <input className="input-field" value={f.persona_encargada} onChange={e => set('persona_encargada', e.target.value)} />
+      </div>
+      <div className="flex gap-3 justify-end pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+        <button type="button" onClick={onCancel} className="btn-secondary">Cancelar</button>
+        <button type="submit" className="btn-primary">Guardar</button>
+      </div>
+    </form>
   );
 }
 
 function TareasOperacionSection() {
   const [tareas, setTareas] = useState(null);
   const [error, setError]   = useState('');
+  const [editModal, setEditModal] = useState(false);
+  const [editando, setEditando]   = useState(null);
   const navigate = useNavigate();
 
   const load = useCallback(async () => {
@@ -272,6 +328,16 @@ function TareasOperacionSection() {
     setTareas(prev => prev.map(x => x.id === t.id ? { ...x, completada: !t.completada } : x));
     try { await proveedoresApi.updateTareaOperacion(t.id, { completada: !t.completada }); }
     catch { load(); }
+  };
+
+  const abrirEditar = (t) => { setEditando(t); setEditModal(true); };
+
+  const guardarEdicion = async (data) => {
+    try {
+      await proveedoresApi.updateTareaOperacion(editando.id, data);
+      setEditModal(false); setEditando(null);
+      await load();
+    } catch { setError('No se pudo actualizar la tarea'); }
   };
 
   if (tareas === null) return <PageLoader />;
@@ -303,7 +369,7 @@ function TareasOperacionSection() {
                 <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
               </div>
               <div className="space-y-2.5">
-                {pendientes.map(t => <TareaOperacionRow key={t.id} t={t} onToggle={toggle} navigate={navigate} />)}
+                {pendientes.map(t => <TareaOperacionRow key={t.id} t={t} onToggle={toggle} onEditar={abrirEditar} navigate={navigate} />)}
               </div>
             </div>
           )}
@@ -318,12 +384,16 @@ function TareasOperacionSection() {
                 <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
               </div>
               <div className="space-y-2.5">
-                {completadas.map(t => <TareaOperacionRow key={t.id} t={t} onToggle={toggle} navigate={navigate} />)}
+                {completadas.map(t => <TareaOperacionRow key={t.id} t={t} onToggle={toggle} onEditar={abrirEditar} navigate={navigate} />)}
               </div>
             </div>
           )}
         </>
       )}
+      <Modal open={editModal} onClose={() => { setEditModal(false); setEditando(null); }} title="Editar tarea de operación">
+        <TareaOperacionForm inicial={editando} onSave={guardarEdicion}
+          onCancel={() => { setEditModal(false); setEditando(null); }} />
+      </Modal>
     </div>
   );
 }

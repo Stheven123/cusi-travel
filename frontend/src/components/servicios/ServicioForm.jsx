@@ -52,7 +52,7 @@ export default function ServicioForm({ inicial, onSave, onCancel }) {
         max_pax:         form.max_pax ? Number(form.max_pax) : undefined,
         plantilla_operaciones: plantillaOperaciones.map(op => ({
           ...op,
-          proveedor_id: op.proveedor_id || null,
+          proveedor_id: op.proveedor_id ? Number(op.proveedor_id) : null,
           cantidad: Number(op.cantidad) || 1,
           costo_unitario_usd: Number(op.costo_unitario_usd) || 0,
         })),
