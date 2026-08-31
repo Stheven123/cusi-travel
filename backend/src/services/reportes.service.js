@@ -78,12 +78,20 @@ const reporteProveedores = async (filtros = {}) => {
   return rows;
 };
 
+// Columnas por defecto si el usuario deselecciona todas en el frontend —
+// evita volcar TODAS las columnas internas de la vista (ids, claves foráneas)
+// cuando no se pidió ninguna en particular.
+const CAMPOS_EXCEL_DEFAULT = [
+  'codigo_reserva', 'reserva_fecha_inicio', 'n_pasajeros', 'proveedor_nombre',
+  'tipo_servicio', 'fecha_inicio', 'costo_total_usd', 'detalle_estado',
+];
+
 // Genera el reporte de proveedores como archivo Excel (.xlsx) editable, con
 // las mismas columnas/filtros que la vista JSON — reemplaza el "imprimir"
 // (window.print) que era la única salida disponible hasta ahora.
 const reporteProveedoresExcel = async (filtros = {}) => {
   const rows   = await reporteProveedores(filtros);
-  const campos = filtros.campos?.length ? filtros.campos : (rows[0] ? Object.keys(rows[0]) : []);
+  const campos = filtros.campos?.length ? filtros.campos : CAMPOS_EXCEL_DEFAULT;
   const labels = filtros.labels || {};
 
   const wb = new ExcelJS.Workbook();
@@ -94,7 +102,13 @@ const reporteProveedoresExcel = async (filtros = {}) => {
   ws.getRow(1).font = { bold: true };
   ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE9ECF5' } };
 
-  rows.forEach(r => ws.addRow(campos.reduce((acc, c) => { acc[c] = r[c] ?? ''; return acc; }, {})));
+  if (rows.length) {
+    rows.forEach(r => ws.addRow(campos.reduce((acc, c) => { acc[c] = r[c] ?? ''; return acc; }, {})));
+  } else {
+    ws.mergeCells(2, 1, 2, campos.length || 1);
+    ws.getCell(2, 1).value = 'Sin resultados para los filtros seleccionados.';
+    ws.getCell(2, 1).font  = { italic: true, color: { argb: 'FF888888' } };
+  }
 
   return wb;
 };

@@ -1,6 +1,12 @@
 const { query, withTransaction } = require('../config/database');
 const { AppError }               = require('../middleware/error.middleware');
 
+// "Hoy" en horario de Cusco/Lima (UTC-5, sin horario de verano) — usar
+// toISOString().slice(0,10) da la fecha en UTC, que ya cambió de día entre
+// las 19:00 y 23:59 hora local, dejando fuera del calendario reservas del
+// resto del día actual durante esa ventana.
+const fechaLimaISO = (date) => date.toLocaleDateString('en-CA', { timeZone: 'America/Lima' });
+
 // Checklist estándar cuando una operación de tipo GUIA no trae tareas de plantilla propias
 const CHECKLIST_GUIA_DEFAULT = [
   'Fecha de confirmación',
@@ -27,7 +33,7 @@ const instanciarPlantillaOperaciones = async (client, servicioId, reservaId, fec
        RETURNING id`,
       [
         reservaId, pl.proveedor_id || null, pl.tipo_servicio, pl.descripcion || null,
-        fechaInicio || new Date().toISOString().slice(0, 10),
+        fechaInicio || fechaLimaISO(new Date()),
         pl.cantidad, pl.costo_unitario_usd, pl.moneda,
       ]
     );
@@ -96,7 +102,10 @@ const buildFilters = (q) => {
 
 const getAll = async (q = {}) => {
   const { where, values, idx } = buildFilters(q);
-  const limit  = Math.min(Number(q.limit)  || 50, 200);
+  // Tope subido de 200 a 1000: la vista "por mes" de ReservasPage pide hasta
+  // 500 para poder agrupar todo el historial visible sin paginar, y con 200
+  // se truncaba en silencio (sin aviso) apenas una cuenta pasaba ese umbral.
+  const limit  = Math.min(Number(q.limit)  || 50, 1000);
   const offset = Number(q.offset) || 0;
 
   const { rows } = await query(
@@ -138,8 +147,8 @@ const getCalendario = async (desde, hasta) => {
      WHERE r.fecha_inicio <= $2 AND r.fecha_fin >= $1
        AND r.estado_operacion NOT IN ('ANULADO_SIN_PENALIDAD','ANULADO_CON_PENALIDAD')
      ORDER BY r.fecha_inicio`,
-    [desde || new Date().toISOString().slice(0, 10),
-     hasta  || new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10)]
+    [desde || fechaLimaISO(new Date()),
+     hasta  || fechaLimaISO(new Date(Date.now() + 30 * 86400_000))]
   );
   return rows;
 };
@@ -268,28 +277,37 @@ const update = async (id, data, userId) => {
     throw new AppError('Sin datos para actualizar', 400, 'EMPTY_UPDATE');
   }
 
-  const norm   = v => (v === '' ? null : v);
-  let row;
-  if (campos.length) {
-    const sets   = campos.map((k, i) => `${k} = $${i + 2}`);
-    const values = campos.map(k => norm(camposReserva[k]));
-    const { rows } = await query(
-      `UPDATE cusi.reservas SET ${sets.join(', ')} WHERE id = $1 RETURNING *`,
-      [id, ...values]
-    );
-    if (!rows.length) throw new AppError('Reserva no encontrada', 404, 'NOT_FOUND');
-    row = rows[0];
-  }
+  const norm = v => (v === '' ? null : v);
 
-  if (servicios_adicionales !== undefined) {
-    await withTransaction(client => syncServiciosAdicionales(client, id, servicios_adicionales));
-  }
+  // Antes el UPDATE de la reserva y el sync de servicios_adicionales corrían
+  // como dos operaciones independientes (sin transacción compartida): si la
+  // segunda fallaba (ej. error de conexión), la reserva quedaba con un
+  // total_usd ya actualizado pero sin que sus líneas de extras reflejaran
+  // ese cambio — el total dejaba de cuadrar con su propio desglose.
+  const row = await withTransaction(async (client) => {
+    let updated;
+    if (campos.length) {
+      const sets   = campos.map((k, i) => `${k} = $${i + 2}`);
+      const values = campos.map(k => norm(camposReserva[k]));
+      const { rows } = await client.query(
+        `UPDATE cusi.reservas SET ${sets.join(', ')} WHERE id = $1 RETURNING *`,
+        [id, ...values]
+      );
+      if (!rows.length) throw new AppError('Reserva no encontrada', 404, 'NOT_FOUND');
+      updated = rows[0];
+    }
 
-  if (!row) {
-    const { rows } = await query('SELECT * FROM cusi.reservas WHERE id = $1', [id]);
-    if (!rows.length) throw new AppError('Reserva no encontrada', 404, 'NOT_FOUND');
-    row = rows[0];
-  }
+    if (servicios_adicionales !== undefined) {
+      await syncServiciosAdicionales(client, id, servicios_adicionales);
+    }
+
+    if (!updated) {
+      const { rows } = await client.query('SELECT * FROM cusi.reservas WHERE id = $1', [id]);
+      if (!rows.length) throw new AppError('Reserva no encontrada', 404, 'NOT_FOUND');
+      updated = rows[0];
+    }
+    return updated;
+  });
 
   await query(
     `INSERT INTO cusi.logs_auditoria (tabla, operacion, registro_id, usuario_id, datos_despues)

@@ -8,7 +8,7 @@ import { PrioridadBadge, EstadoTareaBadge } from "../components/ui/Badge";
 import { PageLoader } from "../components/ui/Spinner";
 import Modal from "../components/ui/Modal";
 import Alert from "../components/ui/Alert";
-import { fmtFecha, fmtMoneda } from "../utils/formatters";
+import { fmtFecha, fmtMoneda, localDateFromDateOnly } from "../utils/formatters";
 import { PRIORIDADES_TAREA, ESTADOS_TAREA } from "../utils/constants";
 
 const EMPTY = {
@@ -109,7 +109,7 @@ export function TareaForm({ inicial, usuarios, reservaId, onSave, onCancel }) {
 /* ── TareaRow ──────────────────────────────────────────────── */
 function TareaRow({ t, hoy, onCompletar, onEditar }) {
   const navigate = useNavigate();
-  const vencida = t.fecha_vencimiento && new Date(t.fecha_vencimiento) < hoy
+  const vencida = t.fecha_vencimiento && localDateFromDateOnly(t.fecha_vencimiento) < hoy
     && t.estado !== "COMPLETADA" && t.estado !== "CANCELADA";
   const completada = t.estado === "COMPLETADA" || t.estado === "CANCELADA";
   const prioClr = PRIORIDAD_CLR[t.prioridad] || '#c5cad8';
@@ -168,7 +168,7 @@ function TareaRow({ t, hoy, onCompletar, onEditar }) {
 /* ── TareaCard (mobile) ────────────────────────────────────── */
 function TareaCard({ t, hoy, onCompletar, onEditar }) {
   const navigate = useNavigate();
-  const vencida = t.fecha_vencimiento && new Date(t.fecha_vencimiento) < hoy
+  const vencida = t.fecha_vencimiento && localDateFromDateOnly(t.fecha_vencimiento) < hoy
     && t.estado !== "COMPLETADA" && t.estado !== "CANCELADA";
   const completada = t.estado === "COMPLETADA" || t.estado === "CANCELADA";
   const prioClr = PRIORIDAD_CLR[t.prioridad] || '#c5cad8';
@@ -457,7 +457,7 @@ export default function TareasPage() {
 
   const clearFiltros = () => setFiltros({ estado: "", prioridad: "", usuario_id: "", fecha_desde: "", fecha_hasta: "", busqueda: "" });
 
-  const hoy = new Date();
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
 
   const grupos = {
     PENDIENTE:   tareas.filter(t => t.estado === "PENDIENTE"),
@@ -467,7 +467,7 @@ export default function TareasPage() {
   };
 
   const vencidas = tareas.filter(t =>
-    t.fecha_vencimiento && new Date(t.fecha_vencimiento) < hoy
+    t.fecha_vencimiento && localDateFromDateOnly(t.fecha_vencimiento) < hoy
     && t.estado !== "COMPLETADA" && t.estado !== "CANCELADA"
   );
 

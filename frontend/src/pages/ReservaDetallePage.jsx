@@ -497,7 +497,7 @@ function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
         tipo_servicio:      f.tipo_servicio,
         fecha_inicio:       f.fecha_inicio,
         fecha_fin:          f.fecha_fin   || undefined,
-        hora_inicio:        f.tipo_servicio === 'TRANSPORTE' ? (f.hora_inicio || undefined) : undefined,
+        hora_inicio:        f.tipo_servicio === 'TRANSPORTE' ? (f.hora_inicio || null) : null,
         descripcion:        f.descripcion  || undefined,
         cantidad:           Number(f.cantidad) || 1,
         costo_unitario_usd: Number(f.costo_unitario_usd) || 0,

@@ -72,7 +72,7 @@ export const isSameDay = (a, b) =>
 
 // Construye la fecha en horario LOCAL a partir del YYYY-MM-DD (evita el
 // corrimiento de día que da `new Date(iso)` con columnas DATE en UTC).
-const localDateFromDateOnly = (iso) => {
+export const localDateFromDateOnly = (iso) => {
   const p = parseDateOnly(iso);
   return p ? new Date(p.y, p.mo - 1, p.d) : new Date(iso);
 };

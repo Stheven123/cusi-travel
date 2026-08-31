@@ -34,12 +34,21 @@ const errorMiddleware = (err, _req, res, _next) => {
   const status  = err.statusCode || 500;
   const isDev   = process.env.NODE_ENV === 'development';
 
-  if (status >= 500) console.error('[SERVER ERROR]', err.message, err.stack);
+  if (status >= 500 || !err.isOperational) console.error('[SERVER ERROR]', err.message, err.stack);
+
+  // Solo los errores "operacionales" (lanzados a propósito por la app, ej.
+  // AppError) tienen un mensaje seguro para mostrar al cliente. Cualquier
+  // otro error no mapeado (driver de Postgres, bug inesperado, etc.) filtraba
+  // su mensaje crudo — que puede incluir nombres reales de tablas/columnas —
+  // a cualquier usuario autenticado (y a /auth/login, que es público).
+  const mensajeSeguro = err.isOperational
+    ? (err.message || 'Error interno del servidor')
+    : 'Error interno del servidor';
 
   res.status(status).json({
     ok:    false,
-    error: err.message || 'Error interno del servidor',
-    code:  err.code    || 'INTERNAL_ERROR',
+    error: isDev ? (err.message || mensajeSeguro) : mensajeSeguro,
+    code:  err.code || 'INTERNAL_ERROR',
     ...(isDev && { stack: err.stack }),
   });
 };

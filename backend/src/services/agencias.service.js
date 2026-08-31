@@ -31,8 +31,8 @@ const getById = async (id) => {
 
 const create = async (data) => {
   const { rows } = await query(
-    `INSERT INTO cusi.agencias (nombre, codigo, contacto, telefono, email)
-     VALUES ($1,$2,$3,$4,$5)
+    `INSERT INTO cusi.agencias (nombre, codigo, contacto, telefono, email, activo)
+     VALUES ($1,$2,$3,$4,$5,$6)
      RETURNING *`,
     [
       data.nombre,
@@ -40,6 +40,7 @@ const create = async (data) => {
       data.contacto || null,
       data.telefono || null,
       data.email    || null,
+      data.activo ?? true,
     ]
   );
   return rows[0];

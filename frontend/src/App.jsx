@@ -26,6 +26,16 @@ const PublicRoute = ({ children }) => {
   return !isAuthenticated ? children : <Navigate to="/" replace />;
 };
 
+// El backend ya rechaza /usuarios con 403 para roles fuera de MANAGEMENT
+// (ADMIN/OPERACIONES/FINANZAS) — sin este guard, un usuario GUIA/VENTAS/
+// SOLO_LECTURA que entraba a la URL directamente veía la pantalla rota
+// ("Error al cargar usuarios") en vez de ser redirigido.
+const MANAGEMENT_ROLES = ['ADMIN', 'OPERACIONES', 'FINANZAS'];
+const RoleRoute = ({ roles, children }) => {
+  const { user } = useAuth();
+  return roles.includes(user?.rol) ? children : <Navigate to="/" replace />;
+};
+
 const AppRoutes = () => (
   <Routes>
     <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
@@ -38,7 +48,7 @@ const AppRoutes = () => (
       <Route path="proveedores" element={<ProveedoresPage />} />
       <Route path="tareas" element={<TareasPage />} />
       <Route path="reportes" element={<ReportesPage />} />
-      <Route path="usuarios" element={<UsuariosPage />} />
+      <Route path="usuarios" element={<RoleRoute roles={MANAGEMENT_ROLES}><UsuariosPage /></RoleRoute>} />
       <Route path="mi-agencia" element={<AgenciaPage />} />
       <Route path="agencias" element={<AgenciasPage />} />
       <Route path="calendario" element={<CalendarioPage />} />

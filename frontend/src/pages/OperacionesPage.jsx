@@ -85,7 +85,7 @@ function DetalleForm({ inicial, proveedores, onSave, onCancel }) {
       descripcion:        f.descripcion || undefined,
       fecha_inicio:       f.fecha_inicio || undefined,
       fecha_fin:          f.fecha_fin    || undefined,
-      hora_inicio:        f.tipo_servicio === 'TRANSPORTE' ? (f.hora_inicio || undefined) : undefined,
+      hora_inicio:        f.tipo_servicio === 'TRANSPORTE' ? (f.hora_inicio || null) : null,
       cantidad:           Number(f.cantidad) || 1,
       costo_unitario_usd: Number(f.costo_unitario_usd) || 0,
       estado:             f.estado,

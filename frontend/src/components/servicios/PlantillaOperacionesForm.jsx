@@ -17,7 +17,24 @@ export default function PlantillaOperacionesForm({ operaciones = [], proveedores
     setExpanded(p => ({ ...p, [operaciones.length]: true }));
   };
 
-  const handleRemove = (idx) => onChange(operaciones.filter((_, i) => i !== idx));
+  // expanded/nuevaTarea están indexados por posición en el array — al eliminar
+  // una operación hay que recorrer los índices posteriores, si no el estado
+  // de "expandido"/borrador de tarea queda pegado a la operación equivocada.
+  const reindexAfterRemove = (map, removedIdx) => {
+    const next = {};
+    Object.entries(map).forEach(([k, v]) => {
+      const i = Number(k);
+      if (i === removedIdx) return;
+      next[i > removedIdx ? i - 1 : i] = v;
+    });
+    return next;
+  };
+
+  const handleRemove = (idx) => {
+    onChange(operaciones.filter((_, i) => i !== idx));
+    setExpanded(p => reindexAfterRemove(p, idx));
+    setNuevaTarea(p => reindexAfterRemove(p, idx));
+  };
   const handleChange = (idx, field, value) =>
     onChange(operaciones.map((o, i) => i === idx ? { ...o, [field]: value } : o));
   const toggle = (idx) => setExpanded(p => ({ ...p, [idx]: !p[idx] }));
@@ -71,7 +88,8 @@ export default function PlantillaOperacionesForm({ operaciones = [], proveedores
                   </div>
                   <div>
                     <label className="label">Proveedor {!esIngreso && <span style={{ color: '#ef4444' }}>*</span>}{esIngreso && '(opcional)'}</label>
-                    <select className="input-field" value={op.proveedor_id} onChange={e => handleChange(idx, 'proveedor_id', e.target.value)}>
+                    <select className="input-field" value={op.proveedor_id} required={!esIngreso}
+                      onChange={e => handleChange(idx, 'proveedor_id', e.target.value)}>
                       <option value="">{esIngreso ? '— Sin proveedor —' : '— Selecciona —'}</option>
                       {proveedoresFiltrados.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                     </select>

@@ -280,11 +280,9 @@ const drawDatosPersonas = (doc, cotizacion, agencia, tx) => {
 };
 
 // ─── 4. RESUMEN DE VIAJE ─────────────────────────────────────
-const drawResumenViaje = (doc, servicio, cotizacion, tx, lang) => {
+const drawResumenViaje = (doc, servicio, cotizacion, tx, lang, curY) => {
   const { font, col, fill, draw, lw, rect, text } = h(doc);
 
-  const Y = doc.internal.getCurrentPageInfo ? undefined : 0; // placeholder
-  const curY = arguments[5]; // passed externally
   const ROW_H = 9;
 
   // Header de sección

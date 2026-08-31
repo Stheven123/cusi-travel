@@ -8,8 +8,13 @@ const reservaSchema = z.object({
   codigo_reserva:       z.string().min(1).max(30).optional().nullable(),
   servicio_id:          z.number().int().positive().optional().nullable(),
   nombre_servicio_snap: z.string().max(200).optional().or(z.literal('')).nullable(),
-  fecha_inicio:         z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato YYYY-MM-DD').optional().or(z.literal('')).nullable(),
-  fecha_fin:            z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato YYYY-MM-DD').optional().or(z.literal('')).nullable(),
+  // reservas.fecha_inicio/fecha_fin son DATE NOT NULL en la BD — antes eran
+  // opcionales acá, así que un create() sin fecha pasaba la validación y
+  // recién fallaba en el INSERT con un 422 genérico ("campo obligatorio no
+  // proporcionado") en vez de decir cuál campo faltaba. .partial() (usado en
+  // update) sigue haciéndolos opcionales igual, esto solo afecta a create().
+  fecha_inicio:         z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato YYYY-MM-DD'),
+  fecha_fin:            z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato YYYY-MM-DD'),
   hora_encuentro:       z.string().optional().or(z.literal('')).nullable(),
   lugar_encuentro:      z.string().max(300).optional().or(z.literal('')).nullable(),
   n_pasajeros:          z.number().int().min(1).default(1),

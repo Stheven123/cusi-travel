@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Plus, Copy, Search, Clock, Mountain, Bike, MapPin,
   Package, Plane, Pencil, Star, ChevronDown, ChevronUp,
@@ -418,13 +418,18 @@ export default function ServiciosPage() {
   const [busqueda, setBusqueda]     = useState('');
   const [tipoFiltro, setTipoFiltro] = useState('');
 
+  // Evita que una respuesta lenta de una búsqueda anterior sobreescriba los
+  // resultados de la búsqueda más reciente (cada tecleo dispara un fetch).
+  const loadSeq = useRef(0);
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current;
     setLoading(true);
     try {
       const r = await serviciosApi.getAll(busqueda ? { busqueda } : {});
+      if (seq !== loadSeq.current) return;
       setServicios(r.data || []);
-    } catch { setError('Error al cargar paquetes'); }
-    finally { setLoading(false); }
+    } catch { if (seq === loadSeq.current) setError('Error al cargar paquetes'); }
+    finally { if (seq === loadSeq.current) setLoading(false); }
   }, [busqueda]);
 
   useEffect(() => { load(); }, [load]);

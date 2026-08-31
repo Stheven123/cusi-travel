@@ -13,6 +13,12 @@ const cleanString = (val) => {
   return sanitizeHtml(val, SANITIZE_OPTS).trim();
 };
 
+// Los campos de contraseña NUNCA deben pasar por el sanitizador de HTML: si el
+// usuario elige una contraseña con &lt;, &gt; o & el HTML-escape la altera antes
+// de hashearla, y el valor almacenado ya no coincide con lo que el usuario
+// escribió (rompe el login y reduce la entropía efectiva de la contraseña).
+const PASSWORD_KEYS = new Set(['password', 'nueva_password', 'password_actual', 'confirmar_password']);
+
 // Recorre recursivamente un objeto/array y limpia todos los strings
 const sanitizeDeep = (input) => {
   if (input === null || input === undefined) return input;
@@ -21,7 +27,7 @@ const sanitizeDeep = (input) => {
   if (typeof input === 'object') {
     const out = {};
     for (const key of Object.keys(input)) {
-      out[key] = sanitizeDeep(input[key]);
+      out[key] = PASSWORD_KEYS.has(key) ? input[key] : sanitizeDeep(input[key]);
     }
     return out;
   }

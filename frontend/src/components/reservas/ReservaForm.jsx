@@ -198,12 +198,12 @@ export default function ReservaForm({ inicial, onSave, onCancel }) {
       {/* ── Fechas y logística ── */}
       <Section icon={CalendarDays} title="Fechas y logística" color="#10b981">
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Fecha inicio">
-            <input type="date" value={form.fecha_inicio} onChange={e => set('fecha_inicio', e.target.value)}
+          <Field label="Fecha inicio" required>
+            <input type="date" required value={form.fecha_inicio} onChange={e => set('fecha_inicio', e.target.value)}
               className="input-field" />
           </Field>
-          <Field label="Fecha fin">
-            <input type="date" value={form.fecha_fin} onChange={e => set('fecha_fin', e.target.value)}
+          <Field label="Fecha fin" required>
+            <input type="date" required value={form.fecha_fin} onChange={e => set('fecha_fin', e.target.value)}
               className="input-field" />
           </Field>
         </div>

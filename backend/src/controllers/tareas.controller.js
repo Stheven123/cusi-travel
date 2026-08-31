@@ -4,7 +4,11 @@ const service = require('../services/tareas.service');
 const tareaSchema = z.object({
   titulo:            z.string().min(2).max(300),
   descripcion:       z.string().optional().nullable(),
-  usuario_id:        z.coerce.number().int().positive().optional().nullable(),
+  // tareas_pendientes.usuario_id es NOT NULL en la BD — dejarlo opcional acá
+  // hacía que un create() sin responsable pasara la validación y recién
+  // fallara en el INSERT con un 422 genérico. .partial() (usado en update)
+  // sigue haciéndolo opcional igual, esto solo afecta a create().
+  usuario_id:        z.coerce.number().int().positive(),
   reserva_id:        z.coerce.number().int().positive().optional().nullable(),
   prioridad:         z.enum(['BAJA','MEDIA','ALTA','URGENTE']).default('MEDIA'),
   estado:            z.enum(['PENDIENTE','EN_PROGRESO','COMPLETADA','CANCELADA']).default('PENDIENTE'),

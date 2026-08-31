@@ -25,7 +25,17 @@ const servicioSchema = z.object({
     costo_unitario_usd: z.number().min(0).default(0),
     moneda:             z.enum(['USD','PEN']).default('USD'),
     tareas:             z.array(z.object({ titulo: z.string().min(1).max(300) })).optional().default([]),
-  })).optional(),
+  })
+    // detalles_operacion_proveedor tiene CHECK (proveedor_id IS NOT NULL OR
+    // tipo_servicio = 'INGRESOS') — sin este refine, una plantilla guardada
+    // sin proveedor para un tipo distinto de INGRESOS rompía CUALQUIER
+    // reserva creada con ese paquete (la creación entera hacía rollback con
+    // un 422 genérico, sin indicar que el problema era la plantilla).
+    .refine(op => op.tipo_servicio === 'INGRESOS' || !!op.proveedor_id, {
+      message: 'Selecciona un proveedor (obligatorio salvo para INGRESOS)',
+      path: ['proveedor_id'],
+    })
+  ).optional(),
   catalogo_adicionales: z.array(z.object({
     nombre:     z.string().min(1).max(200),
     precio_usd: z.number().min(0).default(0),

@@ -6,7 +6,7 @@ import { reservasApi } from '../api/reservas.api';
 import { EstadoOpBadge, EstadoPagoBadge } from '../components/ui/Badge';
 import { PageLoader } from '../components/ui/Spinner';
 import Alert from '../components/ui/Alert';
-import { fmtMoneda, fmtFecha } from '../utils/formatters';
+import { fmtMoneda, fmtFecha, localDateFromDateOnly } from '../utils/formatters';
 
 /* ── Finance KPI card ─────────────────────────────────────────── */
 function FinKpiCard({ label, value, icon: Icon, color, sub, warn }) {
@@ -116,7 +116,7 @@ export default function FinanzasPage() {
   const thisYear  = new Date().getFullYear();
   const cobrosDelMes = [...parciales, ...pendientes].filter(r => {
     if (!Number(r.adelanto_usd)) return false;
-    const d = new Date(r.fecha_inicio);
+    const d = localDateFromDateOnly(r.fecha_inicio);
     return d.getMonth() === thisMonth && d.getFullYear() === thisYear;
   });
 

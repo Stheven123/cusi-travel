@@ -297,21 +297,29 @@ export default function CalendarioPage() {
     ? `${fmtFechaCorta(weekStart)} — ${fmtFechaCorta(weekDays[6])}`
     : `${MESES[month]} ${year}`;
 
+  // Evita que una respuesta lenta de un mes/semana anterior sobreescriba
+  // los datos del rango que el usuario ya está viendo (navegación rápida
+  // prev/next dispara varios fetches en paralelo, no garantizados en orden).
+  const loadSeq = useRef(0);
+
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current;
     setLoading(true);
     try {
       const days  = vista === 'semanal' ? weekDays : monthDays;
       const desde = toLocalDateStr(days[0]);
       const hasta = toLocalDateStr(days[days.length - 1]);
       const resReservas = await reservasApi.getCalendario({ desde, hasta });
+      if (seq !== loadSeq.current) return;
       setReservas(resReservas.data || []);
       // Briefings son opcionales: si la migración no se ejecutó aún no rompe el calendario
       try {
         const resBriefings = await briefingsApi.getAll({ desde, hasta });
+        if (seq !== loadSeq.current) return;
         setBriefings(resBriefings.data || []);
-      } catch { setBriefings([]); }
-    } catch { setError('Error al cargar el calendario'); }
-    finally { setLoading(false); }
+      } catch { if (seq === loadSeq.current) setBriefings([]); }
+    } catch { if (seq === loadSeq.current) setError('Error al cargar el calendario'); }
+    finally { if (seq === loadSeq.current) setLoading(false); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current, vista]);
 

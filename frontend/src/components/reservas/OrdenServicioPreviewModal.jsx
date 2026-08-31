@@ -15,19 +15,33 @@ export default function OrdenServicioPreviewModal({
 }) {
   const [paraGuia, setParaGuia]   = useState(false);
   const [notasLineas, setNotas]   = useState([]);
+  const [notasDirty, setNotasDirty] = useState(false); // true en cuanto el usuario edita el texto a mano
   const [presupuesto, setPresu]   = useState([]);
   const [blobUrl, setBlobUrl]     = useState('');
   const [loading, setLoading]     = useState(false);
   const debounceRef = useRef(null);
+  const blobUrlRef = useRef('');
 
   useEffect(() => {
     if (!open) return;
     const agencia = getAgenciaData();
     setNotas(buildNotas(reserva, agencia, notas, false));
+    setNotasDirty(false);
     setPresu(buildPresupuesto(reserva, presupuestoItems));
     setParaGuia(false);
+    setBlobUrl('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, reserva?.id]);
+
+  // Al alternar "vista para guía" se recalculan las notas (que excluyen el
+  // pago a staff y el RUC) — salvo que el usuario ya haya editado el texto a
+  // mano, en cuyo caso se respeta lo que escribió en vez de pisarlo.
+  useEffect(() => {
+    if (!open || notasDirty) return;
+    const agencia = getAgenciaData();
+    setNotas(buildNotas(reserva, agencia, notas, paraGuia));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paraGuia]);
 
   const regenerar = useCallback(async () => {
     setLoading(true);
@@ -38,7 +52,10 @@ export default function OrdenServicioPreviewModal({
         notasOverride: notasLineas,
         presupuestoOverride: presupuesto,
       });
-      setBlobUrl(doc.output('bloburl'));
+      const url = doc.output('bloburl');
+      if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+      blobUrlRef.current = url;
+      setBlobUrl(url);
     } finally { setLoading(false); }
   }, [reserva, briefings, itinerarios, notas, presupuestoItems, paraGuia, notasLineas, presupuesto]);
 
@@ -49,6 +66,13 @@ export default function OrdenServicioPreviewModal({
     return () => clearTimeout(debounceRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, paraGuia, notasLineas, presupuesto]);
+
+  // Revoca el último blob al cerrar/desmontar — jsPDF genera uno nuevo en
+  // cada regeneración y sin esto se acumulan en memoria mientras el modal
+  // sigue abierto.
+  useEffect(() => () => {
+    if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+  }, []);
 
   const setPresuItem = (i, k, v) => setPresu(p => p.map((it, idx) => idx === i ? { ...it, [k]: v } : it));
   const addPresuItem = () => setPresu(p => [...p, { descripcion: '', monto: 0, moneda: 'USD' }]);
@@ -80,9 +104,14 @@ export default function OrdenServicioPreviewModal({
 
           <div>
             <label className="label">Notas (una por línea)</label>
+            {notasDirty && (
+              <p className="text-xs mb-1" style={{ color: 'var(--text-3)' }}>
+                Editaste el texto a mano — el toggle "para guía" ya no lo recalcula automáticamente.
+              </p>
+            )}
             <textarea rows={6} className="input-field resize-none text-xs"
               value={notasLineas.join('\n')}
-              onChange={e => setNotas(e.target.value.split('\n'))} />
+              onChange={e => { setNotas(e.target.value.split('\n')); setNotasDirty(true); }} />
           </div>
 
           {!paraGuia && (

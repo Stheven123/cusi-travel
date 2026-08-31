@@ -2,6 +2,7 @@
 
 const ExcelJS = require('exceljs');
 const { query } = require('../config/database');
+const { AppError } = require('../middleware/error.middleware');
 
 const AGENCY_DEFAULT = {
   name           : 'Cusi Travel',
@@ -83,8 +84,9 @@ function preWhite(ws, rows, cols) {
 async function generarInvoiceExcel(reservaId, overrides = {}) {
   const row = await getReservaData(reservaId);
   if (!row) {
-    const err = new Error(`Reserva ${reservaId} no encontrada`);
-    err.status = 404; throw err;
+    // Antes usaba err.status (no err.statusCode), que error.middleware.js no
+    // lee — este 404 llegaba al cliente como un 500 genérico.
+    throw new AppError(`Reserva ${reservaId} no encontrada`, 404, 'NOT_FOUND');
   }
 
   const agency = { ...AGENCY_DEFAULT, ...overrides.agency };

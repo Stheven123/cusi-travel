@@ -17,6 +17,7 @@ const OPERACIONES_SELECT = `
       d.cantidad,
       d.costo_unitario_usd      AS monto_unitario,
       d.costo_total_usd         AS monto,
+      d.moneda                  AS moneda,
       d.creado_en               AS fecha_emision,
       d.estado,
       d.confirmacion_ref,
@@ -97,15 +98,16 @@ async function construirCierreExcel(ops, { periodoLabel, agencia = {} }) {
     { key: 'proveedor',   width: 25 },   // F  Proveedor
     { key: 'ruc',         width: 14 },   // G  RUC
     { key: 'cant',        width: 7  },   // H  Cant.
-    { key: 'monto_unit',  width: 13 },   // I  Monto Unit.
-    { key: 'monto',       width: 14 },   // J  Monto Total
-    { key: 'fecha_emis',  width: 14 },   // K  Fecha Emisión
-    { key: 'fecha_pago',  width: 14 },   // L  Fecha Pago
-    { key: 'operador',    width: 22 },   // M  Operador
-    { key: 'estado',      width: 15 },   // N  Estado
+    { key: 'moneda',      width: 8  },   // I  Moneda
+    { key: 'monto_unit',  width: 13 },   // J  Monto Unit.
+    { key: 'monto',       width: 14 },   // K  Monto Total
+    { key: 'fecha_emis',  width: 14 },   // L  Fecha Emisión
+    { key: 'fecha_pago',  width: 14 },   // M  Fecha Pago
+    { key: 'operador',    width: 22 },   // N  Operador
+    { key: 'estado',      width: 15 },   // O  Estado
   ];
 
-  const TOTAL_COLS = 14;
+  const TOTAL_COLS = 15;
   const maxRows    = 10 + ops.length + 10;
   preWhite(ws, maxRows, TOTAL_COLS);
 
@@ -131,7 +133,7 @@ async function construirCierreExcel(ops, { periodoLabel, agencia = {} }) {
     } catch (_) {}
   }
 
-  ws.mergeCells('C1:N1');
+  ws.mergeCells('C1:O1');
   const titleCell = ws.getCell('C1');
   titleCell.value     = 'CIERRE DE FILE';
   titleCell.font      = { name: 'Calibri', size: 20, bold: true, color: { argb: 'FF0C2350' } };
@@ -143,7 +145,7 @@ async function construirCierreExcel(ops, { periodoLabel, agencia = {} }) {
   ws.getCell('A2').value     = agencia.name || 'Cusi Travel';
   ws.getCell('A2').font      = { name: 'Calibri', size: 13, bold: true };
 
-  ws.mergeCells('E2:N2');
+  ws.mergeCells('E2:O2');
   ws.getCell('E2').value     = periodoLabel;
   ws.getCell('E2').font      = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FF0C2350' } };
   ws.getCell('E2').alignment = { horizontal: 'right' };
@@ -154,14 +156,14 @@ async function construirCierreExcel(ops, { periodoLabel, agencia = {} }) {
   ws.getCell('A3').value     = agencia.slogan || 'Proud to be Quechua';
   ws.getCell('A3').font      = { name: 'Calibri', size: 10, italic: true, color: { argb: 'FF888888' } };
 
-  ws.mergeCells('E3:N3');
+  ws.mergeCells('E3:O3');
   ws.getCell('E3').value     = `Generado: ${new Date().toLocaleDateString('es-PE', { day:'2-digit', month:'long', year:'numeric' })}`;
   ws.getCell('E3').font      = SM;
   ws.getCell('E3').alignment = { horizontal: 'right' };
   ws.getRow(3).height = 16;
 
   /* ── FILA 4 — separador ── */
-  ws.mergeCells('A4:N4');
+  ws.mergeCells('A4:O4');
   ws.getCell('A4').fill   = NAVY;
   ws.getRow(4).height     = 4;
 
@@ -169,14 +171,26 @@ async function construirCierreExcel(ops, { periodoLabel, agencia = {} }) {
   ws.getRow(5).height = 6;
 
   /* ── FILA 6 — Resumen rápido ── */
-  const totalMonto = ops.reduce((s, r) => s + Number(r.monto || 0), 0);
+  // Las operaciones pueden estar en USD o PEN (plantilla_operaciones.moneda) —
+  // sumarlas todas como si fueran dólares mezclaba montos de distinta moneda
+  // en un solo total, dando una cifra financieramente incorrecta.
+  const totalesPorMoneda = {};
+  ops.forEach(r => {
+    const m = r.moneda || 'USD';
+    totalesPorMoneda[m] = (totalesPorMoneda[m] || 0) + Number(r.monto || 0);
+  });
+  const fmtMontoMoneda = (v, m) => `${m === 'PEN' ? 'S/' : '$'}${Number(v).toFixed(2)}`;
+  const gastoTotalTexto = Object.entries(totalesPorMoneda)
+    .map(([m, v]) => `${fmtMontoMoneda(v, m)} ${m}`)
+    .join('  +  ') || '$0.00 USD';
+
   const totalOps   = ops.length;
   const reservasU  = [...new Set(ops.map(r => r.codigo_reserva).filter(Boolean))].length;
 
   const resumen = [
     ['Total operaciones', totalOps],
     ['Reservas involucradas', reservasU],
-    ['Gasto total', `$${totalMonto.toFixed(2)}`],
+    ['Gasto total', gastoTotalTexto],
   ];
 
   resumen.forEach(([label, val], i) => {
@@ -203,30 +217,46 @@ async function construirCierreExcel(ops, { periodoLabel, agencia = {} }) {
 
   /* ── FILA 9 — Cabecera tabla ── */
   const HDR = 9;
-  const headers = [
-    'N°', 'Código Reserva', 'Fecha Servicio', 'Tipo',
-    'Detalle Gasto', 'Proveedor / Operador', 'RUC',
-    'Cant.', 'Monto Unit.', 'Monto Total',
-    'Fecha Emisión', 'Fecha Pago', 'Operador', 'Estado',
+  // { label, align } por columna — antes era una fórmula por índice que no
+  // contemplaba la nueva columna "Moneda" (i=8); con la tabla explícita no
+  // hay que recalcular offsets a mano si se agrega/quita una columna.
+  const HEAD_COLS = [
+    { label: 'N°',                    align: 'center' },
+    { label: 'Código Reserva',        align: 'center' },
+    { label: 'Fecha Servicio',        align: 'left'   },
+    { label: 'Tipo',                  align: 'left'   },
+    { label: 'Detalle Gasto',         align: 'left'   },
+    { label: 'Proveedor / Operador',  align: 'left'   },
+    { label: 'RUC',                   align: 'left'   },
+    { label: 'Cant.',                 align: 'center' },
+    { label: 'Moneda',                align: 'center' },
+    { label: 'Monto Unit.',           align: 'right'  },
+    { label: 'Monto Total',           align: 'right'  },
+    { label: 'Fecha Emisión',         align: 'center' },
+    { label: 'Fecha Pago',            align: 'center' },
+    { label: 'Operador',              align: 'left'   },
+    { label: 'Estado',                align: 'center' },
   ];
-  headers.forEach((label, i) => {
+  HEAD_COLS.forEach(({ label, align }, i) => {
     const col  = String.fromCharCode(65 + i);
     const cell = ws.getCell(`${col}${HDR}`);
     cell.value     = label;
     cell.font      = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
     cell.fill      = NAVY;
     cell.border    = thin('FF0C2350');
-    cell.alignment = { horizontal: i <= 1 || i >= 11 ? 'center' : (i >= 7 ? 'right' : 'left'), vertical: 'middle', wrapText: false };
+    cell.alignment = { horizontal: align, vertical: 'middle', wrapText: false };
   });
   ws.getRow(HDR).height = 22;
 
   /* ── FILAS 10+ — Datos ── */
   let cur = HDR + 1;
   for (let idx = 0; idx < ops.length; idx++) {
-    const op    = ops[idx];
-    const even  = idx % 2 === 0;
-    const fill  = even ? WHITE : ALTGR;
-    const bord  = thin();
+    const op     = ops[idx];
+    const even   = idx % 2 === 0;
+    const fill   = even ? WHITE : ALTGR;
+    const bord   = thin();
+    const moneda = op.moneda || 'USD';
+    const currFmt = moneda === 'PEN' ? '"S/"#,##0.00' : CURR;
 
     const vals = [
       idx + 1,
@@ -237,6 +267,7 @@ async function construirCierreExcel(ops, { periodoLabel, agencia = {} }) {
       op.proveedor_nombre || '',
       op.ruc             || '',
       Number(op.cantidad || 1),
+      moneda,
       Number(op.monto_unitario || 0),
       Number(op.monto || 0),
       fmtDate(op.fecha_emision),
@@ -253,44 +284,46 @@ async function construirCierreExcel(ops, { periodoLabel, agencia = {} }) {
       cell.border = bord;
       cell.font   = { name: 'Calibri', size: 10 };
 
-      if (i === 7)  { cell.alignment = { horizontal: 'center' }; }
-      if (i === 8)  { cell.numFmt = CURR; cell.alignment = { horizontal: 'right' }; }
-      if (i === 9)  { cell.numFmt = CURR; cell.alignment = { horizontal: 'right' }; }
-      if (i === 10) { cell.alignment = { horizontal: 'center' }; }
-      if (i === 11) {
+      if (i === 0 || i === 1 || i === 7 || i === 8 || i === 11 || i === 14) { cell.alignment = { horizontal: 'center' }; }
+      if (i === 9)  { cell.numFmt = currFmt; cell.alignment = { horizontal: 'right' }; }
+      if (i === 10) { cell.numFmt = currFmt; cell.alignment = { horizontal: 'right' }; }
+      if (i === 12) {
         // Fecha Pago: celda editable destacada en amarillo claro
         cell.fill   = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFDE7' } };
         cell.border = { ...bord, bottom: { style: 'thin', color: { argb: 'FFBBBB00' } } };
       }
-      if (i === 0 || i === 1 || i === 13) { cell.alignment = { horizontal: 'center' }; }
     });
     ws.getRow(cur).height = 16;
     cur++;
   }
 
-  /* ── Fila TOTAL ── */
+  /* ── Filas TOTAL (una por moneda presente) ── */
   ws.getRow(cur).height = 6; cur++;
 
-  const totalRow = cur;
-  ws.mergeCells(`A${totalRow}:H${totalRow}`);
-  ws.getCell(`A${totalRow}`).value     = 'TOTAL GASTOS DEL MES';
-  ws.getCell(`A${totalRow}`).font      = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
-  ws.getCell(`A${totalRow}`).fill      = NAVY;
-  ws.getCell(`A${totalRow}`).alignment = { horizontal: 'right' };
+  Object.entries(totalesPorMoneda).forEach(([moneda, total]) => {
+    const totalRow = cur;
+    const currFmt = moneda === 'PEN' ? '"S/"#,##0.00' : CURR;
+    ws.mergeCells(`A${totalRow}:H${totalRow}`);
+    ws.getCell(`A${totalRow}`).value     = `TOTAL GASTOS DEL MES (${moneda})`;
+    ws.getCell(`A${totalRow}`).font      = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+    ws.getCell(`A${totalRow}`).fill      = NAVY;
+    ws.getCell(`A${totalRow}`).alignment = { horizontal: 'right' };
 
-  ws.getCell(`I${totalRow}`).fill      = NAVY;
-  ws.getCell(`J${totalRow}`).value     = totalMonto;
-  ws.getCell(`J${totalRow}`).font      = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
-  ws.getCell(`J${totalRow}`).fill      = NAVY;
-  ws.getCell(`J${totalRow}`).numFmt    = CURR;
-  ws.getCell(`J${totalRow}`).alignment = { horizontal: 'right' };
-  ['K','L','M','N'].forEach(c => { ws.getCell(`${c}${totalRow}`).fill = NAVY; });
-  ws.getRow(totalRow).height = 24;
-  cur++;
+    ws.getCell(`I${totalRow}`).fill      = NAVY;
+    ws.getCell(`K${totalRow}`).value     = total;
+    ws.getCell(`K${totalRow}`).font      = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
+    ws.getCell(`K${totalRow}`).fill      = NAVY;
+    ws.getCell(`K${totalRow}`).numFmt    = currFmt;
+    ws.getCell(`K${totalRow}`).alignment = { horizontal: 'right' };
+    ws.getCell(`J${totalRow}`).fill      = NAVY;
+    ['L','M','N','O'].forEach(c => { ws.getCell(`${c}${totalRow}`).fill = NAVY; });
+    ws.getRow(totalRow).height = 24;
+    cur++;
+  });
 
   /* ── Nota al pie ── */
   ws.getRow(cur).height = 10; cur++;
-  ws.mergeCells(`A${cur}:N${cur}`);
+  ws.mergeCells(`A${cur}:O${cur}`);
   ws.getCell(`A${cur}`).value     = 'Columna "Fecha Pago" (amarilla) pendiente de completar manualmente.  •  Generado con Cusi Travel ERP';
   ws.getCell(`A${cur}`).font      = { name: 'Calibri', size: 8, italic: true, color: { argb: 'FFAAAAAA' } };
   ws.getCell(`A${cur}`).alignment = { horizontal: 'center' };

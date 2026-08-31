@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, Search, Edit2, Trash2, Phone, Mail } from 'lucide-react';
 import { proveedoresApi } from '../api/proveedores.api';
 import { Badge } from '../components/ui/Badge';
@@ -107,16 +107,21 @@ export default function ProveedoresPage() {
   const [busqueda, setBusqueda] = useState('');
   const [tipo, setTipo]         = useState('');
 
+  // Evita que una respuesta lenta de una búsqueda anterior sobreescriba los
+  // resultados de la búsqueda más reciente (cada tecleo dispara un fetch).
+  const loadSeq = useRef(0);
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current;
     setLoading(true);
     try {
       const params = {};
       if (busqueda) params.busqueda = busqueda;
       if (tipo)     params.tipo     = tipo;
       const r = await proveedoresApi.getAll(params);
+      if (seq !== loadSeq.current) return;
       setLista(Array.isArray(r) ? r : (r.data || []));
-    } catch (e) { setError(e?.message || e?.error || 'Error al cargar proveedores'); }
-    finally { setLoading(false); }
+    } catch (e) { if (seq === loadSeq.current) setError(e?.message || e?.error || 'Error al cargar proveedores'); }
+    finally { if (seq === loadSeq.current) setLoading(false); }
   }, [busqueda, tipo]);
 
   useEffect(() => { load(); }, [load]);

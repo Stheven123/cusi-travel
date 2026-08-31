@@ -65,11 +65,17 @@ const getById = async (id) => {
 };
 
 const create = async (data, creadoPorId) => {
+  // chk_tareas_completada_tiene_fecha exige completada_en cuando estado =
+  // COMPLETADA — update() ya lo maneja, create() lo tenía sin cubrir (crear
+  // una tarea ya completada rompía con un 422 genérico).
+  const completadaEn    = data.estado === 'COMPLETADA' ? new Date() : null;
+  const completadaPorId = data.estado === 'COMPLETADA' ? creadoPorId : null;
+
   const { rows } = await query(
     `INSERT INTO cusi.tareas_pendientes
        (titulo, descripcion, usuario_id, reserva_id, prioridad, estado,
-        fecha_vencimiento, creado_por_id)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+        fecha_vencimiento, creado_por_id, completada_en, completada_por_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
      RETURNING *`,
     [
       data.titulo,
@@ -80,6 +86,8 @@ const create = async (data, creadoPorId) => {
       data.estado,
       data.fecha_vencimiento || null,
       creadoPorId,
+      completadaEn,
+      completadaPorId,
     ]
   );
   return rows[0];

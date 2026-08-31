@@ -1,6 +1,6 @@
 import { CheckCircle2, Clock, AlertTriangle } from 'lucide-react';
 import { PrioridadBadge } from '../ui/Badge';
-import { fmtFecha } from '../../utils/formatters';
+import { fmtFecha, localDateFromDateOnly } from '../../utils/formatters';
 
 export default function TareasWidget({ tareas = [], onCompletar, onVerTodas }) {
   const activas = tareas.filter(t => t.estado !== 'COMPLETADA' && t.estado !== 'CANCELADA');
@@ -25,7 +25,8 @@ export default function TareasWidget({ tareas = [], onCompletar, onVerTodas }) {
         ) : (
           <ul className="divide-y divide-gray-50">
             {activas.map(t => {
-              const vencida = t.fecha_vencimiento && new Date(t.fecha_vencimiento) < new Date();
+              const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+              const vencida = t.fecha_vencimiento && localDateFromDateOnly(t.fecha_vencimiento) < hoy;
               return (
                 <li key={t.id} className="px-5 py-3 hover:bg-gray-50 transition-colors">
                   <div className="flex items-start justify-between gap-2">

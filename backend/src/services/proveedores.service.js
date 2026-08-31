@@ -60,12 +60,24 @@ const create = async (data) => {
 };
 
 const update = async (id, data) => {
-  const campos  = Object.keys(data);
+  // "notas" es un alias del frontend (ver proveedorSchema) — la tabla solo
+  // tiene columna "observaciones". create() ya hacía este mapeo; update() no
+  // lo hacía y mandaba "notas" como si fuera columna real, rompiendo con
+  // "column notas does not exist".
+  const payload = { ...data };
+  if ('notas' in payload) {
+    if (payload.observaciones === undefined || payload.observaciones === '' || payload.observaciones === null) {
+      payload.observaciones = payload.notas;
+    }
+    delete payload.notas;
+  }
+
+  const campos  = Object.keys(payload);
   if (!campos.length) throw new AppError('Sin datos para actualizar', 400, 'EMPTY_UPDATE');
 
   const norm   = v => (v === '' ? null : v);
   const sets   = campos.map((k, i) => `${k} = $${i + 2}`);
-  const values = campos.map(k => norm(data[k]));
+  const values = campos.map(k => norm(payload[k]));
 
   const { rows } = await query(
     `UPDATE cusi.proveedores SET ${sets.join(', ')} WHERE id = $1 RETURNING *`,
@@ -170,16 +182,28 @@ const updateDetalle = async (detalleId, data, userId) => {
   const campos  = { ...data };
   if (!Object.keys(campos).length) throw new AppError('Sin datos para actualizar', 400, 'EMPTY_UPDATE');
 
-  // Si el estado cambia, se registra quién y cuándo lo modificó.
-  if (Object.prototype.hasOwnProperty.call(campos, 'estado')) {
+  const needsEstadoCheck = Object.prototype.hasOwnProperty.call(campos, 'estado');
+  const needsNotasCheck  = Object.prototype.hasOwnProperty.call(campos, 'notas');
+  let notasCambiaron = false;
+
+  if (needsEstadoCheck || needsNotasCheck) {
     const { rows: cur } = await query(
-      'SELECT estado FROM cusi.detalles_operacion_proveedor WHERE id = $1',
+      'SELECT estado, notas FROM cusi.detalles_operacion_proveedor WHERE id = $1',
       [detalleId]
     );
     if (!cur.length) throw new AppError('Detalle de operación no encontrado', 404, 'NOT_FOUND');
-    if (cur[0].estado !== campos.estado) {
+    // Si el estado cambia, se registra quién y cuándo lo modificó.
+    if (needsEstadoCheck && cur[0].estado !== campos.estado) {
       campos.estado_actualizado_por_id = userId || null;
       campos.estado_actualizado_en     = new Date();
+    }
+    // El formulario reenvía "notas" en cada guardado aunque el usuario no haya
+    // tocado ese campo — si igual disparáramos syncNotaOperacion cada vez,
+    // pisaría/resucitaría cualquier edición o borrado que el usuario haya
+    // hecho directamente en la pestaña "Notas" de la reserva. Solo se
+    // resincroniza cuando el texto de la operación realmente cambió.
+    if (needsNotasCheck && (cur[0].notas || null) !== (campos.notas || null)) {
+      notasCambiaron = true;
     }
   }
 
@@ -194,7 +218,7 @@ const updateDetalle = async (detalleId, data, userId) => {
   );
   if (!rows.length) throw new AppError('Detalle de operación no encontrado', 404, 'NOT_FOUND');
   const detalle = rows[0];
-  if (Object.prototype.hasOwnProperty.call(campos, 'notas')) {
+  if (notasCambiaron) {
     await syncNotaOperacion(detalle.reserva_id, detalle.id, detalle.tipo_servicio, detalle.proveedor_id, detalle.notas, userId);
   }
   return detalle;
