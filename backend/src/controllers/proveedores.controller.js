@@ -33,6 +33,8 @@ const detalleSchemaBase = z.object({
   estado:              z.enum(['PENDIENTE','SOLICITADO','RESERVADO','PAGADO','CONFIRMADO','RECONFIRMADO','EMITIDO','ANULADO','FACTURADO','COMPLETADO','CANCELADO','PENDIENTE_PAGO']).default('PENDIENTE'),
   confirmacion_ref:    z.string().max(100).optional().or(z.literal('')).nullable(),
   notas:               z.string().optional().or(z.literal('')).nullable(),
+  fecha_vencimiento:   z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal('')).nullable(),
+  persona_encargada:   z.string().max(200).optional().or(z.literal('')).nullable(),
   tipo_documento:      z.string().max(40).optional().or(z.literal('')).nullable(),
   serie_documento:     z.string().max(20).optional().or(z.literal('')).nullable(),
   numero_documento:    z.string().max(30).optional().or(z.literal('')).nullable(),

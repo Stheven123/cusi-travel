@@ -150,9 +150,10 @@ const createDetalle = async (data, userId) => {
        (reserva_id, proveedor_id, tipo_servicio, descripcion,
         fecha_inicio, fecha_fin, hora_inicio, cantidad,
         costo_unitario_usd, moneda, estado, confirmacion_ref, notas,
+        fecha_vencimiento, persona_encargada,
         tipo_documento, serie_documento, numero_documento, enlace_drive,
         estado_actualizado_por_id, estado_actualizado_en)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW())
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,NOW())
      RETURNING *`,
     [
       data.reserva_id, data.proveedor_id || null, data.tipo_servicio,
@@ -166,6 +167,8 @@ const createDetalle = async (data, userId) => {
       data.estado,
       data.confirmacion_ref || null,
       data.notas            || null,
+      data.fecha_vencimiento || null,
+      data.persona_encargada || null,
       data.tipo_documento   || null,
       data.serie_documento  || null,
       data.numero_documento || null,

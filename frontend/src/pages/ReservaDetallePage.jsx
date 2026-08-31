@@ -24,7 +24,7 @@ import Alert from '../components/ui/Alert';
 import ReservaForm from '../components/reservas/ReservaForm';
 import PasajeroForm from '../components/reservas/PasajeroForm';
 import OrdenServicioPreviewModal from '../components/reservas/OrdenServicioPreviewModal';
-import { fmtFecha, fmtFechaHora, fmtMoneda } from '../utils/formatters';
+import { fmtFecha, fmtFechaHora, fmtMoneda, localDateFromDateOnly } from '../utils/formatters';
 import { ESTADOS_OPERACION, ESTADOS_DETALLE_OPERACION, TIPOS_DOCUMENTO } from '../utils/constants';
 
 const TABS = ['Info', 'Pasajeros', 'Operaciones', 'Tareas', 'Briefings', 'Notas', 'Información interna', 'Presupuesto'];
@@ -364,6 +364,20 @@ function OperacionRow({ d, onEdit, onDelete }) {
             {d.descripcion  && <span className="truncate max-w-[200px]">{d.descripcion}</span>}
             {d.confirmacion_ref && <span className="font-mono">{d.confirmacion_ref}</span>}
           </div>
+          {(d.fecha_vencimiento || d.persona_encargada) && (
+            <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1 text-xs" style={{ color: 'var(--text-2)' }}>
+              {d.fecha_vencimiento && (() => {
+                const vencido = localDateFromDateOnly(d.fecha_vencimiento) < (() => { const h = new Date(); h.setHours(0, 0, 0, 0); return h; })()
+                  && !['COMPLETADO', 'CANCELADO', 'ANULADO'].includes(d.estado);
+                return (
+                  <span className="flex items-center gap-1 font-medium" style={vencido ? { color: '#ef4444' } : {}}>
+                    <Clock size={11} />{vencido ? 'Plazo vencido: ' : 'Plazo: '}{fmtFecha(d.fecha_vencimiento)}
+                  </span>
+                );
+              })()}
+              {d.persona_encargada && <span className="flex items-center gap-1"><User size={11} />{d.persona_encargada}</span>}
+            </div>
+          )}
           {(d.tipo_documento || d.serie_documento || d.numero_documento || d.enlace_drive) && (
             <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
               {d.tipo_documento && (
@@ -446,7 +460,7 @@ function TareaRow({ t, navigate }) {
 const DETALLE_EMPTY = {
   proveedor_id: '', tipo_servicio: '', fecha_inicio: '', fecha_fin: '', hora_inicio: '',
   descripcion: '', cantidad: 1, costo_unitario_usd: '', moneda: 'USD',
-  estado: 'PENDIENTE', notas: '',
+  estado: 'PENDIENTE', notas: '', fecha_vencimiento: '', persona_encargada: '',
   tipo_documento: '', serie_documento: '', numero_documento: '', enlace_drive: '',
 };
 
@@ -458,6 +472,7 @@ function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
     fecha_inicio:  inicial?.fecha_inicio?.slice(0, 10) ?? '',
     fecha_fin:     inicial?.fecha_fin?.slice(0, 10)   ?? '',
     hora_inicio:   inicial?.hora_inicio?.slice(0, 5)  ?? '',
+    fecha_vencimiento: inicial?.fecha_vencimiento?.slice(0, 10) ?? '',
   });
   const [err, setErr]       = useState('');
   const [saving, setSaving] = useState(false);
@@ -503,6 +518,8 @@ function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
         costo_unitario_usd: Number(f.costo_unitario_usd) || 0,
         moneda:             f.moneda,
         notas:              f.notas        || undefined,
+        fecha_vencimiento:  f.fecha_vencimiento || null,
+        persona_encargada:  f.persona_encargada || null,
         estado:             f.estado,
         tipo_documento:     f.tipo_documento   || undefined,
         serie_documento:    f.serie_documento  || undefined,
@@ -577,6 +594,20 @@ function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
             onChange={e => set('hora_inicio', e.target.value)} />
         </div>
       )}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">Plazo límite</label>
+          <input type="date" className="input-field" value={f.fecha_vencimiento}
+            onChange={e => set('fecha_vencimiento', e.target.value)}
+            title="Fecha límite para confirmar/resolver esta operación" />
+        </div>
+        <div>
+          <label className="label">Encargado</label>
+          <input className="input-field" value={f.persona_encargada}
+            onChange={e => set('persona_encargada', e.target.value)}
+            placeholder="Nombre del responsable" />
+        </div>
+      </div>
       <div>
         <label className="label">Descripción</label>
         <textarea rows={2} className="input-field resize-none" value={f.descripcion}

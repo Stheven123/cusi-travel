@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Plus, RefreshCw, Search, Package, Edit2, Trash2, ChevronRight,
+  Plus, RefreshCw, Search, Package, Edit2, Trash2, ChevronRight, User, Clock,
 } from 'lucide-react';
 import { proveedoresApi } from '../api/proveedores.api';
 import { PageLoader } from '../components/ui/Spinner';
 import Modal from '../components/ui/Modal';
 import Alert from '../components/ui/Alert';
-import { fmtFecha, fmtMoneda } from '../utils/formatters';
+import { fmtFecha, fmtMoneda, localDateFromDateOnly } from '../utils/formatters';
 
 const ESTADO_CLR = {
   PENDIENTE:     { color: '#f59e0b', bg: 'rgba(245,158,11,0.13)' },
@@ -55,6 +55,7 @@ const DETALLE_EMPTY = {
   proveedor_id: '', tipo_servicio: 'HOTEL', fecha_inicio: '',
   fecha_fin: '', hora_inicio: '', descripcion: '', cantidad: 1,
   costo_unitario_usd: '', estado: 'SOLICITADO', notas: '',
+  fecha_vencimiento: '', persona_encargada: '',
 };
 
 /* ── Form (top-level — no focus loss) ───────────────────────── */
@@ -63,6 +64,7 @@ function DetalleForm({ inicial, proveedores, onSave, onCancel }) {
     fecha_inicio: inicial?.fecha_inicio?.slice(0,10) || '',
     fecha_fin:    inicial?.fecha_fin?.slice(0,10)    || '',
     hora_inicio:  inicial?.hora_inicio?.slice(0,5)   || '',
+    fecha_vencimiento: inicial?.fecha_vencimiento?.slice(0,10) || '',
   });
   const [tipoProveedor, setTipoProveedor] = useState('');
   const [err, setErr] = useState('');
@@ -90,6 +92,8 @@ function DetalleForm({ inicial, proveedores, onSave, onCancel }) {
       costo_unitario_usd: Number(f.costo_unitario_usd) || 0,
       estado:             f.estado,
       notas:              f.notas || undefined,
+      fecha_vencimiento:  f.fecha_vencimiento || null,
+      persona_encargada:  f.persona_encargada || null,
     });
   };
 
@@ -157,6 +161,20 @@ function DetalleForm({ inicial, proveedores, onSave, onCancel }) {
             onChange={e => set('hora_inicio', e.target.value)} />
         </div>
       )}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">Plazo límite</label>
+          <input type="date" className="input-field" value={f.fecha_vencimiento}
+            onChange={e => set('fecha_vencimiento', e.target.value)}
+            title="Fecha límite para confirmar/resolver esta operación" />
+        </div>
+        <div>
+          <label className="label">Encargado</label>
+          <input className="input-field" value={f.persona_encargada}
+            onChange={e => set('persona_encargada', e.target.value)}
+            placeholder="Nombre del responsable" />
+        </div>
+      </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label">Cantidad</label>
@@ -231,6 +249,25 @@ function OperacionRow({ d, onEdit, onDelete, navigate }) {
           )}
           <span className="flex-shrink-0">×{d.cantidad}</span>
         </div>
+
+        {/* L4: plazo límite + encargado */}
+        {(d.fecha_vencimiento || d.persona_encargada) && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs md:text-sm" style={{ color: 'var(--text-3)' }}>
+            {d.fecha_vencimiento && (() => {
+              const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+              const vencido = localDateFromDateOnly(d.fecha_vencimiento) < hoy
+                && !['COMPLETADO', 'CANCELADO', 'ANULADO'].includes(d.estado);
+              return (
+                <span className="flex items-center gap-1 flex-shrink-0 font-medium" style={vencido ? { color: '#ef4444' } : {}}>
+                  <Clock size={11} />{vencido ? 'Plazo vencido: ' : 'Plazo: '}{fmtFecha(d.fecha_vencimiento)}
+                </span>
+              );
+            })()}
+            {d.persona_encargada && (
+              <span className="flex items-center gap-1 flex-shrink-0"><User size={11} />{d.persona_encargada}</span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Right: cost + actions */}
