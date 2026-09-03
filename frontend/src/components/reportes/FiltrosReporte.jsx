@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Filter, Printer } from 'lucide-react';
+import { Filter } from 'lucide-react';
 import { TIPOS_PROVEEDOR, ESTADOS_DETALLE_OPERACION } from '../../utils/constants';
 import { proveedoresApi } from '../../api/proveedores.api';
 import { reportesApi } from '../../api/reportes.api';
@@ -154,10 +154,6 @@ export default function FiltrosReporte({ onResultados }) {
         <button onClick={generar} disabled={loading} className="btn-primary w-full justify-center">
           {loading ? <Spinner size="sm" /> : <Filter size={16} />}
           Generar reporte
-        </button>
-        <button onClick={() => window.print()} className="btn-secondary w-full justify-center">
-          <Printer size={16} />
-          Imprimir
         </button>
       </div>
     </div>

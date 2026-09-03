@@ -486,15 +486,12 @@ function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
 
   // Checklist de tareas — solo al CREAR: al editar, las tareas ya existentes
   // se gestionan con el checklist desplegable de la operación (ver más abajo).
+  // Mismos campos que el checklist de una operación existente: título, fecha
+  // límite, monto y persona encargada.
   const esNueva = !inicial?.id;
-  const [tareas, setTareas]         = useState([]);
-  const [nuevaTarea, setNuevaTarea] = useState('');
-  const addTarea = () => {
-    const titulo = nuevaTarea.trim();
-    if (!titulo) return;
-    setTareas(p => [...p, titulo]);
-    setNuevaTarea('');
-  };
+  const [tareas, setTareas]           = useState([]);
+  const [showTareaForm, setShowTareaForm] = useState(false);
+  const addTarea = (data) => { setTareas(p => [...p, data]); setShowTareaForm(false); };
   const removeTarea = (i) => setTareas(p => p.filter((_, idx) => idx !== i));
 
   const handleSubmit = async (e) => {
@@ -525,7 +522,7 @@ function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
         serie_documento:    f.serie_documento  || undefined,
         numero_documento:   f.numero_documento || undefined,
         enlace_drive:       f.enlace_drive     || undefined,
-        ...(esNueva && tareas.length ? { tareas: tareas.map(titulo => ({ titulo })) } : {}),
+        ...(esNueva && tareas.length ? { tareas } : {}),
       });
     } catch (e) {
       setErr(e?.error || e?.message || 'Error al guardar la operación');
@@ -633,9 +630,12 @@ function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
         </div>
       </div>
       <div>
-        <label className="label">Notas</label>
+        <label className="label">Información interna</label>
+        <p className="text-xs mb-1" style={{ color: 'var(--text-3)' }}>
+          Solo para el equipo — nunca se imprime en la orden de servicio.
+        </p>
         <textarea rows={2} className="input-field resize-none" value={f.notas}
-          onChange={e => set('notas', e.target.value)} placeholder="Notas para el equipo..." />
+          onChange={e => set('notas', e.target.value)} placeholder="Información interna para el equipo..." />
       </div>
       <div className="pt-2 space-y-3" style={{ borderTop: '1px dashed var(--border)' }}>
         <p className="label">Documento sustentatorio</p>
@@ -673,21 +673,29 @@ function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
           </label>
           {tareas.map((t, i) => (
             <div key={i} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg" style={{ background: 'var(--card-2)' }}>
-              <span className="flex-1" style={{ color: 'var(--text)' }}>{t}</span>
+              <span className="flex-1 min-w-0 truncate" style={{ color: 'var(--text)' }}>{t.titulo}</span>
+              {t.fecha && <span className="flex-shrink-0" style={{ color: 'var(--text-3)' }}>{fmtFecha(t.fecha)}</span>}
+              {t.monto != null && t.monto !== '' && (
+                <span className="flex-shrink-0 font-semibold" style={{ color: 'var(--text-2)' }}>{fmtMoneda(t.monto)}</span>
+              )}
+              {t.persona_encargada && (
+                <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full" style={{ background: 'var(--card)', color: 'var(--text-2)' }}>
+                  {t.persona_encargada}
+                </span>
+              )}
               <button type="button" onClick={() => removeTarea(i)} style={{ color: '#ef4444' }}>
                 <X size={12} />
               </button>
             </div>
           ))}
-          <div className="flex gap-2">
-            <input className="input-field text-xs flex-1" placeholder="Nueva tarea del checklist..."
-              value={nuevaTarea} onChange={e => setNuevaTarea(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTarea(); } }} />
-            <button type="button" onClick={addTarea}
-              className="px-3 rounded-lg text-xs font-semibold" style={{ background: 'var(--brand)', color: 'white' }}>
-              <Plus size={13} />
+          {showTareaForm ? (
+            <TareaOperacionForm onSave={addTarea} onCancel={() => setShowTareaForm(false)} />
+          ) : (
+            <button type="button" onClick={() => setShowTareaForm(true)}
+              className="text-xs font-semibold px-2 py-1 cursor-pointer flex items-center gap-1" style={{ color: 'var(--brand)' }}>
+              <Plus size={12} /> Agregar tarea
             </button>
-          </div>
+          )}
         </div>
       )}
       <div className="flex gap-3 justify-end pt-2" style={{ borderTop: '1px solid var(--border)' }}>

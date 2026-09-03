@@ -126,7 +126,12 @@ const CHECKLIST_GUIA = [
   'Fecha de pago',
 ];
 
-const tareasInlineSchema = z.array(z.object({ titulo: z.string().min(1).max(300) })).optional();
+const tareasInlineSchema = z.array(z.object({
+  titulo:            z.string().min(1).max(300),
+  fecha:             z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal('')).nullable(),
+  monto:             z.number().optional().nullable(),
+  persona_encargada: z.string().max(200).optional().or(z.literal('')).nullable(),
+})).optional();
 
 const createDetalle = async (req, res, next) => {
   try {
@@ -134,12 +139,12 @@ const createDetalle = async (req, res, next) => {
     const tareas = tareasInlineSchema.parse(req.body.tareas);
     const data   = await service.createDetalle(body, req.user.id);
 
-    const titulos = tareas?.length
-      ? tareas.map(t => t.titulo)
-      : (body.tipo_servicio === 'GUIA' ? CHECKLIST_GUIA : []);
+    const items = tareas?.length
+      ? tareas
+      : (body.tipo_servicio === 'GUIA' ? CHECKLIST_GUIA.map(titulo => ({ titulo })) : []);
 
-    if (titulos.length) {
-      await service.createTareasOperacionBulk(data.id, titulos.map(titulo => ({ titulo })));
+    if (items.length) {
+      await service.createTareasOperacionBulk(data.id, items);
     }
     res.status(201).json({ ok: true, data });
   } catch (err) { next(err); }

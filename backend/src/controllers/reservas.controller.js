@@ -31,6 +31,7 @@ const reservaSchema = z.object({
   usuario_guia_id:      z.number().int().positive().optional().nullable(),
   observaciones:        z.string().optional().or(z.literal('')).nullable(),
   notas_internas:       z.string().optional().or(z.literal('')).nullable(),
+  modalidad_servicio:   z.enum(['COMPARTIDO', 'PRIVADO']).optional().nullable(),
   servicios_adicionales: z.array(z.object({
     nombre:              z.string().min(1).max(200),
     cantidad:            z.number().int().min(1).default(1),

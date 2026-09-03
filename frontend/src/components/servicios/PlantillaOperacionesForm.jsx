@@ -8,9 +8,14 @@ const OP_VACIA = () => ({
   cantidad: 1, costo_unitario_usd: '', moneda: 'USD', tareas: [],
 });
 
+const TAREA_VACIA = { titulo: '', fecha: '', monto: '', persona_encargada: '' };
+
 export default function PlantillaOperacionesForm({ operaciones = [], proveedores = [], onChange }) {
   const [expanded, setExpanded] = useState({});
   const [nuevaTarea, setNuevaTarea] = useState({});
+  const getNuevaTarea = (idx) => nuevaTarea[idx] || TAREA_VACIA;
+  const setNuevaTareaField = (idx, field, value) =>
+    setNuevaTarea(p => ({ ...p, [idx]: { ...getNuevaTarea(idx), [field]: value } }));
 
   const handleAdd = () => {
     onChange([...operaciones, OP_VACIA()]);
@@ -40,11 +45,17 @@ export default function PlantillaOperacionesForm({ operaciones = [], proveedores
   const toggle = (idx) => setExpanded(p => ({ ...p, [idx]: !p[idx] }));
 
   const addTarea = (idx) => {
-    const titulo = (nuevaTarea[idx] || '').trim();
+    const t = getNuevaTarea(idx);
+    const titulo = (t.titulo || '').trim();
     if (!titulo) return;
     const op = operaciones[idx];
-    handleChange(idx, 'tareas', [...(op.tareas || []), { titulo }]);
-    setNuevaTarea(p => ({ ...p, [idx]: '' }));
+    handleChange(idx, 'tareas', [...(op.tareas || []), {
+      titulo,
+      fecha: t.fecha || null,
+      monto: t.monto === '' ? null : Number(t.monto),
+      persona_encargada: t.persona_encargada || null,
+    }]);
+    setNuevaTarea(p => ({ ...p, [idx]: TAREA_VACIA }));
   };
   const removeTarea = (idx, tIdx) => {
     const op = operaciones[idx];
@@ -129,19 +140,37 @@ export default function PlantillaOperacionesForm({ operaciones = [], proveedores
                   <div className="space-y-1.5 mt-1">
                     {(op.tareas || []).map((t, tIdx) => (
                       <div key={tIdx} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg" style={{ background: 'var(--card-2)' }}>
-                        <span className="flex-1" style={{ color: 'var(--text)' }}>{t.titulo}</span>
+                        <span className="flex-1 min-w-0 truncate" style={{ color: 'var(--text)' }}>{t.titulo}</span>
+                        {t.fecha && <span className="flex-shrink-0" style={{ color: 'var(--text-3)' }}>{t.fecha}</span>}
+                        {t.monto != null && t.monto !== '' && (
+                          <span className="flex-shrink-0 font-semibold" style={{ color: 'var(--text-2)' }}>{t.monto}</span>
+                        )}
+                        {t.persona_encargada && (
+                          <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full" style={{ background: 'var(--card)', color: 'var(--text-2)' }}>
+                            {t.persona_encargada}
+                          </span>
+                        )}
                         <button type="button" onClick={() => removeTarea(idx, tIdx)} style={{ color: '#ef4444' }}>
                           <X size={12} />
                         </button>
                       </div>
                     ))}
-                    <div className="flex gap-2">
-                      <input className="input-field text-xs flex-1" placeholder="Nueva tarea del checklist..."
-                        value={nuevaTarea[idx] || ''}
-                        onChange={e => setNuevaTarea(p => ({ ...p, [idx]: e.target.value }))}
+                    <div className="flex flex-wrap items-end gap-2">
+                      <input className="input-field text-xs flex-1 min-w-[140px]" placeholder="Nueva tarea del checklist..."
+                        value={getNuevaTarea(idx).titulo}
+                        onChange={e => setNuevaTareaField(idx, 'titulo', e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTarea(idx); } }} />
+                      <input type="date" className="input-field text-xs" style={{ width: '9.5rem' }}
+                        value={getNuevaTarea(idx).fecha}
+                        onChange={e => setNuevaTareaField(idx, 'fecha', e.target.value)} />
+                      <input type="number" step="0.01" className="input-field text-xs" style={{ width: '6.5rem' }} placeholder="Monto"
+                        value={getNuevaTarea(idx).monto}
+                        onChange={e => setNuevaTareaField(idx, 'monto', e.target.value)} />
+                      <input className="input-field text-xs" style={{ width: '9rem' }} placeholder="Encargado"
+                        value={getNuevaTarea(idx).persona_encargada}
+                        onChange={e => setNuevaTareaField(idx, 'persona_encargada', e.target.value)} />
                       <button type="button" onClick={() => addTarea(idx)}
-                        className="px-3 rounded-lg text-xs font-semibold" style={{ background: 'var(--brand)', color: 'white' }}>
+                        className="px-3 py-2 rounded-lg text-xs font-semibold" style={{ background: 'var(--brand)', color: 'white' }}>
                         <Plus size={13} />
                       </button>
                     </div>

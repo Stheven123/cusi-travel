@@ -340,16 +340,19 @@ const getAllTareasOperacion = async (filters = {}) => {
     values.push(filters.completada === 'true' || filters.completada === true);
   }
   if (filters.reserva_id) { conds.push(`d.reserva_id = $${idx++}`); values.push(Number(filters.reserva_id)); }
+  if (filters.tipo_servicio) { conds.push(`d.tipo_servicio = $${idx++}`); values.push(filters.tipo_servicio); }
 
   const { rows } = await query(
     `SELECT t.*,
             d.reserva_id, d.tipo_servicio, d.proveedor_id,
             p.nombre AS proveedor_nombre,
-            r.codigo_reserva, r.agencia_nombre
+            r.codigo_reserva, r.agencia_nombre,
+            TRIM(CONCAT(ug.nombre, ' ', ug.apellido)) AS guia_asignado_nombre
      FROM cusi.tareas_operacion t
      JOIN cusi.detalles_operacion_proveedor d ON d.id = t.detalle_id
      LEFT JOIN cusi.proveedores p ON p.id = d.proveedor_id
      JOIN cusi.reservas r ON r.id = d.reserva_id
+     LEFT JOIN cusi.usuarios ug ON ug.id = r.usuario_guia_id
      WHERE ${conds.join(' AND ')}
      ORDER BY t.completada, t.fecha NULLS LAST, t.id DESC
      LIMIT 500`,

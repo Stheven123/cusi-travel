@@ -104,12 +104,6 @@ const datosTrekTexto = (it) => {
   return lineas.length ? lineas.join('\n') : '—';
 };
 
-const TIPO_LABEL = {
-  HOTEL: 'Hotel', TRANSPORTE: 'Transporte', RESTAURANTE: 'Restaurante', GUIA: 'Guía',
-  AEROLINEA: 'Aerolínea', TREN: 'Tren', OPERADOR_LOCAL: 'Operador local', SEGURO: 'Seguro',
-  ACTIVIDAD: 'Actividad', COCINERO: 'Cocinero', PORTER: 'Quechuas', OTRO: 'Otro', INGRESOS: 'Ingreso',
-};
-
 // ─── Construye las filas etiqueta/valor del bloque superior ────────────
 const buildHeaderRows = (reserva, itinerarios) => {
   const rows = [];
@@ -182,27 +176,15 @@ const buildHeaderRows = (reserva, itinerarios) => {
   return rows;
 };
 
-// ─── Sección de notas: RUC, pagos a staff, notas de operaciones + notas de la reserva ──
+// ─── Sección de notas: RUC + notas del módulo "Notas" de la reserva únicamente ──
 // (reserva.observaciones queda excluido a propósito: es información interna,
-// nunca debe imprimirse en la orden de servicio — ver ReservaForm.jsx)
+// nunca debe imprimirse en la orden de servicio — ver ReservaForm.jsx.
+// La "información interna" de cada operación — antes columna "notas" — y los
+// montos operativos (pagos a staff) tampoco se imprimen aquí: son de uso interno,
+// no de la orden de servicio. Ver DetalleForm en ReservaDetallePage.jsx.)
 export const buildNotas = (reserva, agencia, notas = [], paraGuia = false) => {
   const lineas = [];
   notas.forEach(n => { if (n.texto?.trim()) lineas.push(n.texto.trim()); });
-  const detalles = reserva.detalles || [];
-
-  detalles.filter(d => d.notas?.trim()).forEach(d => {
-    lineas.push(`${TIPO_LABEL[d.tipo_servicio] || d.tipo_servicio}${d.proveedor_nombre ? ` (${d.proveedor_nombre})` : ''}: ${d.notas.trim()}`);
-  });
-
-  if (!paraGuia) {
-    const staffPagos = detalles.filter(d => ['GUIA', 'COCINERO', 'PORTER'].includes(d.tipo_servicio) && Number(d.costo_total_usd) > 0);
-    if (staffPagos.length) {
-      const texto = staffPagos
-        .map(d => `${fmtMoneda(d.costo_total_usd, d.moneda)} ${(TIPO_LABEL[d.tipo_servicio] || '').toLowerCase()}${d.proveedor_nombre ? ` (${d.proveedor_nombre})` : ''}`)
-        .join(' + ');
-      lineas.push(`Pago: ${texto}`);
-    }
-  }
 
   if (!paraGuia && agencia.ruc) {
     lineas.push(`Pedir FACTURA para las compras con RUC: ${agencia.ruc}${agencia.razon_social ? ` ${agencia.razon_social}` : ''}.`);
@@ -229,22 +211,15 @@ export const buildBriefings = (briefings = []) => {
     });
 };
 
-// ─── Presupuesto: líneas manuales de la reserva + costos operativos
-// (excluye pagos de staff, ya listados en Notas) ────────────────────────
+// ─── Presupuesto: únicamente las líneas ingresadas manualmente en el módulo
+// Presupuesto de la reserva. Los costos de las operaciones NO se imprimen aquí
+// — son datos internos de operación, no del presupuesto cotizado al cliente. ──
 export const buildPresupuesto = (reserva, presupuestoItems = []) => {
-  const manuales = presupuestoItems.map(it => ({
+  return presupuestoItems.map(it => ({
     descripcion: it.descripcion,
     monto: Number(it.monto),
     moneda: it.moneda || 'USD',
   }));
-  const operativos = (reserva.detalles || [])
-    .filter(d => !['GUIA', 'COCINERO', 'PORTER'].includes(d.tipo_servicio) && Number(d.costo_total_usd) > 0)
-    .map(d => ({
-      descripcion: d.descripcion || TIPO_LABEL[d.tipo_servicio] || d.tipo_servicio,
-      monto: Number(d.costo_total_usd),
-      moneda: d.moneda || 'USD',
-    }));
-  return [...manuales, ...operativos];
 };
 
 // ─── Helpers de dibujo ──────────────────────────────────────────────────

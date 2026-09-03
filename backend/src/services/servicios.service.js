@@ -92,11 +92,14 @@ const syncPlantillas = async (client, servicioId, data) => {
       const plantillaOpId = rows[0].id;
       const tareas = Array.isArray(op.tareas) ? op.tareas : [];
       for (let j = 0; j < tareas.length; j++) {
-        const titulo = (tareas[j].titulo || tareas[j]) + '';
+        const t = tareas[j];
+        const titulo = (t.titulo || t) + '';
         if (!titulo.trim()) continue;
         await client.query(
-          `INSERT INTO cusi.plantilla_tareas_operacion (plantilla_operacion_id, titulo, orden) VALUES ($1,$2,$3)`,
-          [plantillaOpId, titulo, j + 1]
+          `INSERT INTO cusi.plantilla_tareas_operacion
+             (plantilla_operacion_id, titulo, fecha, monto, persona_encargada, orden)
+           VALUES ($1,$2,$3,$4,$5,$6)`,
+          [plantillaOpId, titulo, t.fecha || null, t.monto ?? null, t.persona_encargada || null, j + 1]
         );
       }
     }

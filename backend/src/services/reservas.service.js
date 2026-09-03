@@ -40,17 +40,19 @@ const instanciarPlantillaOperaciones = async (client, servicioId, reservaId, fec
     const detalleId = det[0].id;
 
     const { rows: tareasPlantilla } = await client.query(
-      'SELECT titulo FROM cusi.plantilla_tareas_operacion WHERE plantilla_operacion_id = $1 ORDER BY orden, id',
+      'SELECT titulo, fecha, monto, persona_encargada FROM cusi.plantilla_tareas_operacion WHERE plantilla_operacion_id = $1 ORDER BY orden, id',
       [pl.id]
     );
-    const titulos = tareasPlantilla.length
-      ? tareasPlantilla.map(t => t.titulo)
-      : (pl.tipo_servicio === 'GUIA' ? CHECKLIST_GUIA_DEFAULT : []);
+    const tareas = tareasPlantilla.length
+      ? tareasPlantilla
+      : (pl.tipo_servicio === 'GUIA' ? CHECKLIST_GUIA_DEFAULT.map(titulo => ({ titulo })) : []);
 
-    for (let i = 0; i < titulos.length; i++) {
+    for (let i = 0; i < tareas.length; i++) {
+      const t = tareas[i];
       await client.query(
-        `INSERT INTO cusi.tareas_operacion (detalle_id, titulo, orden) VALUES ($1,$2,$3)`,
-        [detalleId, titulos[i], i + 1]
+        `INSERT INTO cusi.tareas_operacion (detalle_id, titulo, fecha, monto, persona_encargada, orden)
+         VALUES ($1,$2,$3,$4,$5,$6)`,
+        [detalleId, t.titulo, t.fecha || null, t.monto ?? null, t.persona_encargada || null, i + 1]
       );
     }
   }
@@ -211,6 +213,12 @@ const create = async (data, userId) => {
       if (rows.length) nombreSnap = rows[0].nombre;
     }
 
+    // Si el usuario ingresó un código personalizado al crear la reserva, se
+    // respeta; si no, se inserta con 'TEMP' y se reemplaza abajo por el
+    // código autogenerado R-{año}-{id} (necesita el id, que recién existe
+    // después del INSERT).
+    const codigoManual = data.codigo_reserva && data.codigo_reserva.trim();
+
     const { rows } = await client.query(
       `INSERT INTO cusi.reservas
          (servicio_id, nombre_servicio_snap, fecha_inicio, fecha_fin,
@@ -218,8 +226,8 @@ const create = async (data, userId) => {
           estado_operacion, precio_usd_por_pax, total_usd, adelanto_usd, descuento_usd,
           agencia_nombre, agencia_codigo, operador_nombre,
           usuario_creador_id, usuario_operador_id, usuario_guia_id, observaciones, notas_internas,
-          codigo_reserva)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,'TEMP')
+          modalidad_servicio, codigo_reserva)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
        RETURNING id`,
       [
         data.servicio_id       || null,
@@ -243,12 +251,13 @@ const create = async (data, userId) => {
         data.usuario_guia_id   || null,
         data.observaciones     || null,
         data.notas_internas    || null,
+        data.modalidad_servicio || null,
+        codigoManual            || 'TEMP',
       ]
     );
 
     const newId  = rows[0].id;
-    const year   = new Date().getFullYear();
-    const codigo = `R-${year}-${String(newId).padStart(5, '0')}`;
+    const codigo = codigoManual || `R-${new Date().getFullYear()}-${String(newId).padStart(5, '0')}`;
 
     const { rows: updated } = await client.query(
       'UPDATE cusi.reservas SET codigo_reserva = $1 WHERE id = $2 RETURNING *',

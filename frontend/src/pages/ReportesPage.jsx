@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BarChart3, Printer, Hash, DollarSign, Users, FileSpreadsheet, Search, Download, X, Plus, Trash2, FolderOpen, CreditCard, AlertTriangle } from 'lucide-react';
+import { BarChart3, Hash, DollarSign, Users, FileSpreadsheet, Search, Download, X, Plus, Trash2, FolderOpen, CreditCard, AlertTriangle, ClipboardCheck } from 'lucide-react';
 import FiltrosReporte from '../components/reportes/FiltrosReporte';
+import ChecklistGuiaSection from '../components/reportes/ChecklistGuiaSection';
 import Alert from '../components/ui/Alert';
 import { PageLoader } from '../components/ui/Spinner';
 import { fmtMoneda, fmtFecha } from '../utils/formatters';
@@ -632,9 +633,10 @@ export default function ReportesPage() {
   const cols = campos.length ? campos : Object.keys(LABELS);
 
   const TABS = [
-    { key: 'reportes', label: 'Reportes',        icon: BarChart3 },
-    { key: 'invoice',  label: 'Invoice Excel',   icon: FileSpreadsheet },
-    { key: 'cierre',   label: 'Cierre de File',  icon: FolderOpen },
+    { key: 'reportes',       label: 'Reportes',              icon: BarChart3 },
+    { key: 'invoice',        label: 'Invoice Excel',         icon: FileSpreadsheet },
+    { key: 'cierre',         label: 'Cierre de File',        icon: FolderOpen },
+    { key: 'checklist_guia', label: 'Checklist de guía',     icon: ClipboardCheck },
   ];
 
   return (
@@ -655,8 +657,9 @@ export default function ReportesPage() {
         ))}
       </div>
 
-      {tab === 'invoice'  && <InvoiceSection />}
-      {tab === 'cierre'   && <CierreSection />}
+      {tab === 'invoice'        && <InvoiceSection />}
+      {tab === 'cierre'         && <CierreSection />}
+      {tab === 'checklist_guia' && <ChecklistGuiaSection />}
 
       {tab === 'reportes' && <div className="grid grid-cols-1 xl:grid-cols-4 gap-5">
         {/* ── Filters panel ── */}
@@ -681,9 +684,6 @@ export default function ReportesPage() {
                 <div className="flex items-center gap-2">
                   <button onClick={descargarExcel} disabled={descargandoExcel} className="btn-primary">
                     <FileSpreadsheet size={15} /> {descargandoExcel ? 'Generando...' : 'Descargar Excel'}
-                  </button>
-                  <button onClick={() => window.print()} className="btn-secondary">
-                    <Printer size={15} /> Imprimir
                   </button>
                 </div>
               </div>

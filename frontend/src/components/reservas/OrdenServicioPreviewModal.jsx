@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Download, Plus, Trash2 } from 'lucide-react';
+import { Download } from 'lucide-react';
 import Modal from '../ui/Modal';
 import Spinner from '../ui/Spinner';
 import { getAgenciaData } from '../../pages/AgenciaPage';
@@ -74,10 +74,6 @@ export default function OrdenServicioPreviewModal({
     if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
   }, []);
 
-  const setPresuItem = (i, k, v) => setPresu(p => p.map((it, idx) => idx === i ? { ...it, [k]: v } : it));
-  const addPresuItem = () => setPresu(p => [...p, { descripcion: '', monto: 0, moneda: 'USD' }]);
-  const removePresuItem = (i) => setPresu(p => p.filter((_, idx) => idx !== i));
-
   const handleDescargar = async () => {
     const doc = await construirOrdenServicioDoc({
       reserva, briefings, itinerarios, notas, presupuestoItems,
@@ -116,32 +112,23 @@ export default function OrdenServicioPreviewModal({
 
           {!paraGuia && (
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="label mb-0">Presupuesto</label>
-                <button type="button" onClick={addPresuItem}
-                  className="flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg"
-                  style={{ background: 'var(--brand)', color: 'white' }}>
-                  <Plus size={12} /> Agregar
-                </button>
-              </div>
-              <div className="space-y-2">
-                {presupuesto.map((it, i) => (
-                  <div key={i} className="flex gap-1.5 items-center">
-                    <input className="input-field text-xs flex-1" placeholder="Descripción"
-                      value={it.descripcion} onChange={e => setPresuItem(i, 'descripcion', e.target.value)} />
-                    <input type="number" step="0.01" className="input-field text-xs" style={{ width: '5.5rem' }}
-                      value={it.monto} onChange={e => setPresuItem(i, 'monto', Number(e.target.value))} />
-                    <select className="input-field text-xs" style={{ width: '4.5rem' }}
-                      value={it.moneda} onChange={e => setPresuItem(i, 'moneda', e.target.value)}>
-                      <option value="USD">USD</option>
-                      <option value="PEN">PEN</option>
-                    </select>
-                    <button type="button" onClick={() => removePresuItem(i)} style={{ color: '#ef4444' }}>
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
+              <label className="label mb-1">Presupuesto</label>
+              <p className="text-xs mb-1" style={{ color: 'var(--text-3)' }}>
+                Solo lectura — se edita en la pestaña "Presupuesto" de la reserva.
+              </p>
+              {presupuesto.length ? (
+                <div className="space-y-1">
+                  {presupuesto.map((it, i) => (
+                    <div key={i} className="flex gap-1.5 items-center justify-between text-xs px-2 py-1.5 rounded-lg"
+                      style={{ background: 'var(--card-2)', border: '1px solid var(--border)' }}>
+                      <span className="flex-1 truncate">{it.descripcion}</span>
+                      <span className="font-semibold whitespace-nowrap">{it.monto} {it.moneda}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs" style={{ color: 'var(--text-3)' }}>Sin ítems de presupuesto.</p>
+              )}
             </div>
           )}
 

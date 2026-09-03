@@ -19,6 +19,7 @@ const EMPTY = {
   fecha_inicio: '', fecha_fin: '',
   hora_encuentro: '', lugar_encuentro: '',
   n_pasajeros: 1, idioma_servicio: 'Español',
+  modalidad_servicio: '',
   estado_operacion: 'COTIZACION',
   precio_usd_por_pax: 0, total_usd: 0, adelanto_usd: 0, descuento_usd: 0,
   agencia_nombre: '', agencia_codigo: '', operador_nombre: '',
@@ -61,6 +62,7 @@ export default function ReservaForm({ inicial, onSave, onCancel }) {
     fecha_inicio: inicial?.fecha_inicio?.slice(0, 10) || '',
     fecha_fin:    inicial?.fecha_fin?.slice(0, 10)    || '',
     usuario_guia_id: inicial?.usuario_guia_id ?? '',
+    modalidad_servicio: inicial?.modalidad_servicio ?? '',
   });
   const [servicios, setServs] = useState([]);
   const [agencias, setAgencias] = useState([]);
@@ -137,6 +139,7 @@ export default function ReservaForm({ inicial, onSave, onCancel }) {
         descuento_usd:      Number(form.descuento_usd),
         fecha_inicio:       form.fecha_inicio || undefined,
         fecha_fin:          form.fecha_fin    || undefined,
+        modalidad_servicio: form.modalidad_servicio || null,
         servicios_adicionales: extras
           .filter(e => e.nombre?.trim())
           .map(e => ({
@@ -160,18 +163,18 @@ export default function ReservaForm({ inicial, onSave, onCancel }) {
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && <Alert type="error" message={error} onClose={() => setError('')} />}
 
-      {/* ── Código de reserva (solo edición) ── */}
-      {form.id && (
-        <Section icon={Lock} title="Código de reserva" color="#8892aa">
-          <Field label="ID / Código (letras y números)">
-            <input value={form.codigo_reserva || ''} onChange={e => set('codigo_reserva', e.target.value.toUpperCase())}
-              className="input-field font-mono" placeholder="R-2024-00001" maxLength={30} />
-          </Field>
-          <p className="text-xs" style={{ color: 'var(--text-3)' }}>
-            Puedes personalizar el código. Debe ser único en el sistema.
-          </p>
-        </Section>
-      )}
+      {/* ── Código de reserva ── */}
+      <Section icon={Lock} title="Código de reserva" color="#8892aa">
+        <Field label="ID / Código (letras y números)">
+          <input value={form.codigo_reserva || ''} onChange={e => set('codigo_reserva', e.target.value.toUpperCase())}
+            className="input-field font-mono" placeholder="R-2024-00001" maxLength={30} />
+        </Field>
+        <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+          {form.id
+            ? 'Puedes personalizar el código. Debe ser único en el sistema.'
+            : 'Opcional — si lo dejas vacío, se genera automáticamente (R-año-00001).'}
+        </p>
+      </Section>
 
       {/* ── Servicio turístico ── */}
       <Section icon={Package} title="Servicio turístico" color="#4361ee">
@@ -192,6 +195,14 @@ export default function ReservaForm({ inicial, onSave, onCancel }) {
         <Field label="Nombre personalizado (si no está en lista)">
           <input value={form.nombre_servicio_snap} onChange={e => set('nombre_servicio_snap', e.target.value)}
             className="input-field" placeholder="Ej: Tour Machu Picchu privado" />
+        </Field>
+        <Field label="Tipo de servicio">
+          <select value={form.modalidad_servicio} onChange={e => set('modalidad_servicio', e.target.value)}
+            className="input-field">
+            <option value="">— Sin especificar —</option>
+            <option value="COMPARTIDO">Compartido</option>
+            <option value="PRIVADO">Privado</option>
+          </select>
         </Field>
       </Section>
 

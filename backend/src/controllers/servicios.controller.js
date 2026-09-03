@@ -24,7 +24,12 @@ const servicioSchema = z.object({
     cantidad:           z.number().int().min(1).default(1),
     costo_unitario_usd: z.number().min(0).default(0),
     moneda:             z.enum(['USD','PEN']).default('USD'),
-    tareas:             z.array(z.object({ titulo: z.string().min(1).max(300) })).optional().default([]),
+    tareas:             z.array(z.object({
+      titulo:            z.string().min(1).max(300),
+      fecha:             z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal('')).nullable(),
+      monto:             z.number().optional().nullable(),
+      persona_encargada: z.string().max(200).optional().or(z.literal('')).nullable(),
+    })).optional().default([]),
   })
     // detalles_operacion_proveedor tiene CHECK (proveedor_id IS NOT NULL OR
     // tipo_servicio = 'INGRESOS') — sin este refine, una plantilla guardada
