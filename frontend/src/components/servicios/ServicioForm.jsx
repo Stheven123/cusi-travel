@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { TIPOS_SERVICIO, NIVELES_DIFICULTAD } from '../../utils/constants';
 import { serviciosApi } from '../../api/servicios.api';
 import { proveedoresApi } from '../../api/proveedores.api';
@@ -6,6 +6,7 @@ import Alert from '../ui/Alert';
 import Spinner from '../ui/Spinner';
 import PlantillaOperacionesForm from './PlantillaOperacionesForm';
 import CatalogoAdicionalesForm from './CatalogoAdicionalesForm';
+import ItinerarioForm from './ItinerarioForm';
 
 const EMPTY = {
   codigo: '', nombre: '', descripcion: '',
@@ -16,12 +17,17 @@ const EMPTY = {
   activo: true, es_plantilla: false,
 };
 
-const TABS = ['Datos generales', 'Operaciones de plantilla', 'Servicios adicionales'];
+const TABS = ['Datos generales', 'Operaciones de plantilla', 'Servicios adicionales', 'Itinerario'];
 
-export default function ServicioForm({ inicial, onSave, onCancel }) {
+export default function ServicioForm({ inicial, onSave, onSaved, onCancel }) {
   const [form, setForm] = useState({ ...EMPTY, ...inicial });
   const [plantillaOperaciones, setPlantillaOperaciones] = useState(inicial?.plantilla_operaciones || []);
   const [catalogoAdicionales, setCatalogoAdicionales]   = useState(inicial?.catalogo_adicionales || []);
+  const [itinerarios, setItinerarios] = useState(inicial?.itinerarios || []);
+  // Snapshot de los días que ya existían en la BD al abrir el formulario —
+  // se usa para saber cuáles borrar al guardar (el backend gestiona el
+  // itinerario día por día, no como un bloque único como plantilla_operaciones).
+  const itinerariosOriginalesRef = useRef(inicial?.itinerarios || []);
   const [proveedores, setProveedores] = useState([]);
   const [tab, setTab] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -35,16 +41,55 @@ export default function ServicioForm({ inicial, onSave, onCancel }) {
       serviciosApi.getById(inicial.id).then(r => {
         setPlantillaOperaciones(r.data?.plantilla_operaciones || []);
         setCatalogoAdicionales(r.data?.catalogo_adicionales || []);
+        setItinerarios(r.data?.itinerarios || []);
+        itinerariosOriginalesRef.current = r.data?.itinerarios || [];
       }).catch(() => {});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // El itinerario NO se guarda junto con el resto del paquete — el backend
+  // lo maneja día por día (POST/PUT/DELETE individuales), a diferencia de
+  // plantilla_operaciones que sí se reemplaza en bloque. Por eso se sincroniza
+  // aparte, después de guardar los datos generales (necesita el id del
+  // paquete, que en un paquete nuevo recién existe tras el onSave).
+  const sanitizeItinerario = (it, idx) => ({
+    dia_numero:       Number(it.dia_numero) || idx + 1,
+    titulo:           it.titulo,
+    descripcion:      it.descripcion || undefined,
+    altitud_max_msnm: it.altitud_max_msnm !== '' && it.altitud_max_msnm != null ? Number(it.altitud_max_msnm) : undefined,
+    distancia_km:     it.distancia_km !== '' && it.distancia_km != null ? Number(it.distancia_km) : undefined,
+    horas_caminata:   it.horas_caminata !== '' && it.horas_caminata != null ? Number(it.horas_caminata) : undefined,
+    desayuno:         !!it.desayuno,
+    almuerzo:         !!it.almuerzo,
+    cena:             !!it.cena,
+    box_lunch:        !!it.box_lunch,
+    alojamiento:      it.alojamiento || undefined,
+    notas_operativas: it.notas_operativas || undefined,
+    orden:            idx + 1,
+  });
+
+  const syncItinerarios = async (servicioId) => {
+    const idsActuales    = new Set(itinerarios.filter(it => it.id).map(it => it.id));
+    const idsEliminados  = itinerariosOriginalesRef.current
+      .map(it => it.id)
+      .filter(id => id && !idsActuales.has(id));
+    for (const diaId of idsEliminados) {
+      await serviciosApi.deleteItinerario(servicioId, diaId);
+    }
+    for (let i = 0; i < itinerarios.length; i++) {
+      const it   = itinerarios[i];
+      const body = sanitizeItinerario(it, i);
+      if (it.id) await serviciosApi.updateItinerario(servicioId, it.id, body);
+      else       await serviciosApi.addItinerario(servicioId, body);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true); setError('');
     try {
-      await onSave({
+      const saved = await onSave({
         ...form,
         duracion_dias:   Number(form.duracion_dias),
         precio_base_usd: Number(form.precio_base_usd),
@@ -60,6 +105,9 @@ export default function ServicioForm({ inicial, onSave, onCancel }) {
           .filter(it => it.nombre?.trim())
           .map(it => ({ nombre: it.nombre, precio_usd: Number(it.precio_usd) || 0 })),
       });
+      const servicioId = inicial?.id || saved?.data?.id;
+      if (servicioId) await syncItinerarios(servicioId);
+      onSaved?.();
     } catch (err) { setError(err.error || 'Error al guardar'); }
     finally { setSaving(false); }
   };
@@ -82,6 +130,9 @@ export default function ServicioForm({ inicial, onSave, onCancel }) {
             {t === 'Servicios adicionales' && catalogoAdicionales.length > 0 && (
               <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full" style={{ background: 'var(--card-2)' }}>{catalogoAdicionales.length}</span>
             )}
+            {t === 'Itinerario' && itinerarios.length > 0 && (
+              <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full" style={{ background: 'var(--card-2)' }}>{itinerarios.length}</span>
+            )}
           </button>
         ))}
       </div>
@@ -91,6 +142,9 @@ export default function ServicioForm({ inicial, onSave, onCancel }) {
       )}
       {tab === 2 && (
         <CatalogoAdicionalesForm items={catalogoAdicionales} onChange={setCatalogoAdicionales} />
+      )}
+      {tab === 3 && (
+        <ItinerarioForm itinerarios={itinerarios} onChange={setItinerarios} />
       )}
 
       <div className={tab === 0 ? 'space-y-4' : 'hidden'}>

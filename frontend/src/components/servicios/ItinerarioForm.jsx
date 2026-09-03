@@ -5,7 +5,7 @@ const DIAS_VACIO = () => ({
   dia_numero: '', titulo: '', descripcion: '',
   altitud_max_msnm: '', distancia_km: '', horas_caminata: '',
   desayuno: false, almuerzo: false, cena: false, box_lunch: false,
-  alojamiento: '', notas_guia: '',
+  alojamiento: '', notas_operativas: '',
 });
 
 export default function ItinerarioForm({ itinerarios = [], onChange }) {
@@ -111,10 +111,10 @@ export default function ItinerarioForm({ itinerarios = [], onChange }) {
               </div>
 
               <div>
-                <label className="label">Notas para guía</label>
-                <textarea rows={2} className="input-field resize-none" value={dia.notas_guia}
-                  onChange={e => handleChange(idx, 'notas_guia', e.target.value)}
-                  placeholder="Instrucciones internas para el guía..." />
+                <label className="label">Nota operativa (opcional, sale en la orden de servicio)</label>
+                <textarea rows={2} className="input-field resize-none" value={dia.notas_operativas}
+                  onChange={e => handleChange(idx, 'notas_operativas', e.target.value)}
+                  placeholder="Instrucciones operativas para este día..." />
               </div>
             </div>
           )}

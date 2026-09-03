@@ -434,9 +434,16 @@ export default function ServiciosPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // No cierra el modal ni recarga la lista todavía — ServicioForm aún tiene
+  // que sincronizar el itinerario (llamadas aparte, ver ItinerarioForm) antes
+  // de que la lista refleje el conteo de etapas correcto.
   const handleSave = async (data) => {
-    if (editando?.id) await serviciosApi.update(editando.id, data);
-    else              await serviciosApi.create(data);
+    return editando?.id
+      ? await serviciosApi.update(editando.id, data)
+      : await serviciosApi.create(data);
+  };
+
+  const handleSaved = () => {
     setModal(false); setEditando(null);
     setSuccess('Paquete guardado correctamente');
     load();
@@ -527,7 +534,7 @@ export default function ServiciosPage() {
       {/* Modal editar/crear */}
       <Modal open={modal} onClose={() => { setModal(false); setEditando(null); }}
         title={editando ? 'Editar paquete' : 'Nuevo paquete turístico'} size="xl">
-        <ServicioForm inicial={editando} onSave={handleSave}
+        <ServicioForm inicial={editando} onSave={handleSave} onSaved={handleSaved}
           onCancel={() => { setModal(false); setEditando(null); }} />
       </Modal>
 
