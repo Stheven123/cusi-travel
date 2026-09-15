@@ -21,7 +21,9 @@ const getAll = async (q = {}) => {
     `SELECT s.*, creador.nombre || ' ' || creador.apellido AS creado_por_nombre,
             COUNT(i.id)::int AS total_dias_itinerario,
             (SELECT COALESCE(json_agg(jsonb_build_object('id', ca.id, 'nombre', ca.nombre, 'precio_usd', ca.precio_usd) ORDER BY ca.orden), '[]'::json)
-               FROM cusi.plantilla_servicios_adicionales ca WHERE ca.servicio_id = s.id) AS catalogo_adicionales
+               FROM cusi.plantilla_servicios_adicionales ca WHERE ca.servicio_id = s.id) AS catalogo_adicionales,
+            (SELECT COALESCE(json_agg(it ORDER BY it.dia_numero), '[]'::json)
+               FROM cusi.itinerarios it WHERE it.servicio_id = s.id) AS itinerarios
      FROM cusi.servicios_turisticos s
      LEFT JOIN cusi.usuarios creador ON creador.id = s.creado_por
      LEFT JOIN cusi.itinerarios i    ON i.servicio_id = s.id

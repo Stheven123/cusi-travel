@@ -115,6 +115,9 @@ const buildHeaderRows = (reserva, itinerarios) => {
     rows.push(['AGENCIA Y CODIGO', reserva.agencia_nombre + (reserva.agencia_codigo ? ` - ${reserva.agencia_codigo}` : '')]);
   }
   rows.push(['TOUR', reserva.servicio_nombre || reserva.nombre_servicio_snap || '—']);
+  if (reserva.modalidad_servicio) {
+    rows.push(['MODALIDAD', reserva.modalidad_servicio === 'PRIVADO' ? 'Privado' : 'Compartido']);
+  }
   rows.push(['DATE', fmtRangoFechas(reserva.fecha_inicio, reserva.fecha_fin)]);
 
   const hoteles = byTipo('HOTEL');
@@ -181,10 +184,16 @@ const buildHeaderRows = (reserva, itinerarios) => {
 // nunca debe imprimirse en la orden de servicio — ver ReservaForm.jsx.
 // La "información interna" de cada operación — antes columna "notas" — y los
 // montos operativos (pagos a staff) tampoco se imprimen aquí: son de uso interno,
-// no de la orden de servicio. Ver DetalleForm en ReservaDetallePage.jsx.)
+// no de la orden de servicio. Ver DetalleForm en ReservaDetallePage.jsx.
+// OJO: el backend (proveedores.service.js -> syncNotaOperacion) copia esa misma
+// "información interna" de cada operación dentro de reserva_notas (marcadas con
+// detalle_operacion_id) para que el equipo las vea juntas en la pestaña Notas.
+// Esas filas NO fueron escritas a mano por el usuario en el módulo Notas, así que
+// se excluyen aquí — si no, la información interna de una operación se termina
+// imprimiendo igual en la orden de servicio por esta puerta trasera.)
 export const buildNotas = (reserva, agencia, notas = [], paraGuia = false) => {
   const lineas = [];
-  notas.forEach(n => { if (n.texto?.trim()) lineas.push(n.texto.trim()); });
+  notas.forEach(n => { if (!n.detalle_operacion_id && n.texto?.trim()) lineas.push(n.texto.trim()); });
 
   if (!paraGuia && agencia.ruc) {
     lineas.push(`Pedir FACTURA para las compras con RUC: ${agencia.ruc}${agencia.razon_social ? ` ${agencia.razon_social}` : ''}.`);

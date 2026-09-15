@@ -876,6 +876,11 @@ function NotaRow({ n, onEdit, onDelete }) {
       <div className="flex-1 min-w-0">
         <p className="text-sm leading-relaxed whitespace-pre-line" style={{ color: 'var(--text)' }}>{n.texto}</p>
         <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5 text-xs" style={{ color: 'var(--text-3)' }}>
+          {n.detalle_operacion_id && (
+            <span className="px-1.5 py-0.5 rounded" style={{ background: 'var(--card-2)' }}>
+              Auto — información interna de una operación, no sale en la orden de servicio
+            </span>
+          )}
           {n.creado_por_nombre && <span className="flex items-center gap-1"><User size={10} />{n.creado_por_nombre}</span>}
           <span className="flex items-center gap-1"><Clock size={10} />{fmtFechaHora(n.creado_en)}</span>
         </div>
