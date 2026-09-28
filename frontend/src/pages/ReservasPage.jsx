@@ -73,6 +73,12 @@ function ReservaRow({ r, onClick }) {
           <span>{fmtFecha(r.fecha_inicio)}</span>
           <span>·</span>
           <span>{r.n_pasajeros} pax</span>
+          {r.guia_nombre && (
+            <>
+              <span>·</span>
+              <span>Guía: {r.guia_nombre}</span>
+            </>
+          )}
           <span className="hidden sm:inline">·</span>
           <span className="hidden sm:inline">{r.agencia_nombre || '—'}</span>
         </div>

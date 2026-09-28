@@ -99,9 +99,9 @@ const syncPlantillas = async (client, servicioId, data) => {
         if (!titulo.trim()) continue;
         await client.query(
           `INSERT INTO cusi.plantilla_tareas_operacion
-             (plantilla_operacion_id, titulo, fecha, monto, persona_encargada, orden)
-           VALUES ($1,$2,$3,$4,$5,$6)`,
-          [plantillaOpId, titulo, t.fecha || null, t.monto ?? null, t.persona_encargada || null, j + 1]
+             (plantilla_operacion_id, titulo, fecha, monto, moneda, persona_encargada, orden)
+           VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+          [plantillaOpId, titulo, t.fecha || null, t.monto ?? null, t.moneda || 'USD', t.persona_encargada || null, j + 1]
         );
       }
     }

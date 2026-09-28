@@ -100,6 +100,15 @@ export default function ServicioForm({ inicial, onSave, onSaved, onCancel }) {
           proveedor_id: op.proveedor_id ? Number(op.proveedor_id) : null,
           cantidad: Number(op.cantidad) || 1,
           costo_unitario_usd: Number(op.costo_unitario_usd) || 0,
+          // Las tareas que vienen de la BD traen monto como texto (NUMERIC) y
+          // fecha como timestamp — se normalizan para que pasen la validación.
+          tareas: (op.tareas || []).map(t => ({
+            titulo: t.titulo,
+            fecha: t.fecha ? String(t.fecha).slice(0, 10) : null,
+            monto: t.monto === '' || t.monto == null ? null : Number(t.monto),
+            moneda: t.moneda || 'USD',
+            persona_encargada: t.persona_encargada || null,
+          })),
         })),
         catalogo_adicionales: catalogoAdicionales
           .filter(it => it.nombre?.trim())

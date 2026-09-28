@@ -8,7 +8,7 @@ const OP_VACIA = () => ({
   cantidad: 1, costo_unitario_usd: '', moneda: 'USD', tareas: [],
 });
 
-const TAREA_VACIA = { titulo: '', fecha: '', monto: '', persona_encargada: '' };
+const TAREA_VACIA = { titulo: '', fecha: '', monto: '', moneda: 'USD', persona_encargada: '' };
 
 export default function PlantillaOperacionesForm({ operaciones = [], proveedores = [], onChange }) {
   const [expanded, setExpanded] = useState({});
@@ -53,6 +53,7 @@ export default function PlantillaOperacionesForm({ operaciones = [], proveedores
       titulo,
       fecha: t.fecha || null,
       monto: t.monto === '' ? null : Number(t.monto),
+      moneda: t.moneda || 'USD',
       persona_encargada: t.persona_encargada || null,
     }]);
     setNuevaTarea(p => ({ ...p, [idx]: TAREA_VACIA }));
@@ -98,10 +99,12 @@ export default function PlantillaOperacionesForm({ operaciones = [], proveedores
                     </select>
                   </div>
                   <div>
-                    <label className="label">Proveedor {!esIngreso && <span style={{ color: '#ef4444' }}>*</span>}{esIngreso && '(opcional)'}</label>
-                    <select className="input-field" value={op.proveedor_id} required={!esIngreso}
+                    <label className="label">Proveedor</label>
+                    {/* "Sin asignar": la operación se crea en cada reserva nueva sin
+                        proveedor, y el equipo lo asigna ahí según corresponda. */}
+                    <select className="input-field" value={op.proveedor_id ?? ''}
                       onChange={e => handleChange(idx, 'proveedor_id', e.target.value)}>
-                      <option value="">{esIngreso ? '— Sin proveedor —' : '— Selecciona —'}</option>
+                      <option value="">{esIngreso ? '— Sin proveedor —' : '— Sin asignar —'}</option>
                       {proveedoresFiltrados.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                     </select>
                   </div>
@@ -143,7 +146,9 @@ export default function PlantillaOperacionesForm({ operaciones = [], proveedores
                         <span className="flex-1 min-w-0 truncate" style={{ color: 'var(--text)' }}>{t.titulo}</span>
                         {t.fecha && <span className="flex-shrink-0" style={{ color: 'var(--text-3)' }}>{t.fecha}</span>}
                         {t.monto != null && t.monto !== '' && (
-                          <span className="flex-shrink-0 font-semibold" style={{ color: 'var(--text-2)' }}>{t.monto}</span>
+                          <span className="flex-shrink-0 font-semibold" style={{ color: 'var(--text-2)' }}>
+                            {(t.moneda === 'PEN' ? 'S/ ' : '$ ') + t.monto}
+                          </span>
                         )}
                         {t.persona_encargada && (
                           <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full" style={{ background: 'var(--card)', color: 'var(--text-2)' }}>
@@ -166,6 +171,12 @@ export default function PlantillaOperacionesForm({ operaciones = [], proveedores
                       <input type="number" step="0.01" className="input-field text-xs" style={{ width: '6.5rem' }} placeholder="Monto"
                         value={getNuevaTarea(idx).monto}
                         onChange={e => setNuevaTareaField(idx, 'monto', e.target.value)} />
+                      <select className="input-field text-xs" style={{ width: '5.5rem' }}
+                        value={getNuevaTarea(idx).moneda || 'USD'}
+                        onChange={e => setNuevaTareaField(idx, 'moneda', e.target.value)}>
+                        <option value="USD">USD $</option>
+                        <option value="PEN">PEN S/</option>
+                      </select>
                       <input className="input-field text-xs" style={{ width: '9rem' }} placeholder="Encargado"
                         value={getNuevaTarea(idx).persona_encargada}
                         onChange={e => setNuevaTareaField(idx, 'persona_encargada', e.target.value)} />

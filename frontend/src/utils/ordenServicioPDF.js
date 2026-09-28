@@ -179,7 +179,7 @@ const buildHeaderRows = (reserva, itinerarios) => {
   return rows;
 };
 
-// ─── Sección de notas: RUC + notas del módulo "Notas" de la reserva únicamente ──
+// ─── Sección de notas: solo notas del módulo "Notas" de la reserva únicamente ──
 // (reserva.observaciones queda excluido a propósito: es información interna,
 // nunca debe imprimirse en la orden de servicio — ver ReservaForm.jsx.
 // La "información interna" de cada operación — antes columna "notas" — y los
@@ -193,12 +193,9 @@ const buildHeaderRows = (reserva, itinerarios) => {
 // imprimiendo igual en la orden de servicio por esta puerta trasera.)
 export const buildNotas = (reserva, agencia, notas = [], paraGuia = false) => {
   const lineas = [];
+  // Solo las notas escritas en el módulo Notas: ya no se agrega automáticamente
+  // la línea "Pedir FACTURA para las compras con RUC…".
   notas.forEach(n => { if (!n.detalle_operacion_id && n.texto?.trim()) lineas.push(n.texto.trim()); });
-
-  if (!paraGuia && agencia.ruc) {
-    lineas.push(`Pedir FACTURA para las compras con RUC: ${agencia.ruc}${agencia.razon_social ? ` ${agencia.razon_social}` : ''}.`);
-  }
-
   return lineas;
 };
 

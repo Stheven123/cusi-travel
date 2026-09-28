@@ -180,7 +180,7 @@ function PaxTable({ pasajeros, onEdit, onDelete }) {
 }
 
 /* ── Checklist de tareas de una operación ──────────────────────── */
-const TAREA_OP_EMPTY = { titulo: '', fecha: '', monto: '', persona_encargada: '' };
+const TAREA_OP_EMPTY = { titulo: '', fecha: '', monto: '', moneda: 'USD', persona_encargada: '' };
 
 function TareaOperacionForm({ inicial, onSave, onCancel }) {
   const [f, setF] = useState({
@@ -189,6 +189,7 @@ function TareaOperacionForm({ inicial, onSave, onCancel }) {
       titulo: inicial.titulo || '',
       fecha: inicial.fecha ? inicial.fecha.slice(0, 10) : '',
       monto: inicial.monto ?? '',
+      moneda: inicial.moneda || 'USD',
       persona_encargada: inicial.persona_encargada || '',
     } : {}),
   });
@@ -200,6 +201,7 @@ function TareaOperacionForm({ inicial, onSave, onCancel }) {
       titulo: f.titulo,
       fecha: f.fecha || null,
       monto: f.monto === '' ? null : Number(f.monto),
+      moneda: f.moneda || 'USD',
       persona_encargada: f.persona_encargada || null,
     });
   };
@@ -211,6 +213,11 @@ function TareaOperacionForm({ inicial, onSave, onCancel }) {
         onChange={e => set('fecha', e.target.value)} />
       <input type="number" step="0.01" className="input-field text-xs" style={{ width: '6.5rem' }} placeholder="Monto"
         value={f.monto} onChange={e => set('monto', e.target.value)} />
+      <select className="input-field text-xs" style={{ width: '5.5rem' }} value={f.moneda}
+        onChange={e => set('moneda', e.target.value)}>
+        <option value="USD">USD $</option>
+        <option value="PEN">PEN S/</option>
+      </select>
       <input className="input-field text-xs" style={{ width: '9rem' }} placeholder="Encargado"
         value={f.persona_encargada} onChange={e => set('persona_encargada', e.target.value)} />
       <button type="submit" className="p-2 rounded-lg cursor-pointer" style={{ background: 'var(--brand)', color: 'white' }}>
@@ -279,7 +286,7 @@ function OperacionChecklist({ detalleId }) {
             {t.titulo}
           </span>
           {t.fecha && <span className="flex-shrink-0" style={{ color: 'var(--text-3)' }}>{fmtFecha(t.fecha)}</span>}
-          {t.monto != null && <span className="flex-shrink-0 font-semibold" style={{ color: 'var(--text-2)' }}>{fmtMoneda(t.monto)}</span>}
+          {t.monto != null && <span className="flex-shrink-0 font-semibold" style={{ color: 'var(--text-2)' }}>{fmtMoneda(t.monto, t.moneda || 'USD')}</span>}
           {t.persona_encargada && (
             <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full" style={{ background: 'var(--card)', color: 'var(--text-2)' }}>
               {t.persona_encargada}
@@ -347,7 +354,9 @@ function OperacionRow({ d, onEdit, onDelete }) {
         <div className="pl-2 flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="font-semibold text-sm" style={{ color: 'var(--text)' }}>
-              {d.proveedor_nombre || (d.tipo_servicio === 'INGRESOS' ? (d.descripcion || 'Ingreso libre') : '—')}
+              {d.proveedor_nombre || (d.tipo_servicio === 'INGRESOS'
+                ? (d.descripcion || 'Ingreso libre')
+                : <span style={{ color: '#f59e0b' }}>Sin asignar</span>)}
             </p>
             {d.tipo_servicio && (
               <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--card-2)', color: 'var(--text-2)' }}>
@@ -497,7 +506,6 @@ function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErr('');
-    if (!esIngreso && !f.proveedor_id) return setErr('Selecciona un proveedor');
     if (!f.tipo_servicio) return setErr('Selecciona el tipo de operación');
     if (!f.fecha_inicio)  return setErr('Ingresa la fecha de inicio');
     if (f.fecha_fin && f.fecha_fin < f.fecha_inicio) return setErr('La fecha fin no puede ser anterior a la fecha inicio');
@@ -563,11 +571,9 @@ function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
         </div>
       ) : (
         <div>
-          <label className="label">Proveedor <span style={{ color: '#ef4444' }}>*</span></label>
-          <select className="input-field" value={f.proveedor_id} onChange={e => set('proveedor_id', e.target.value)} required>
-            <option value="">
-              {f.tipo_servicio ? `— Selecciona un proveedor de tipo ${f.tipo_servicio} —` : '— Selecciona primero el tipo de operación —'}
-            </option>
+          <label className="label">Proveedor</label>
+          <select className="input-field" value={f.proveedor_id} onChange={e => set('proveedor_id', e.target.value)}>
+            <option value="">— Sin asignar —</option>
             {proveedoresFiltrados.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
           </select>
         </div>
@@ -676,7 +682,7 @@ function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
               <span className="flex-1 min-w-0 truncate" style={{ color: 'var(--text)' }}>{t.titulo}</span>
               {t.fecha && <span className="flex-shrink-0" style={{ color: 'var(--text-3)' }}>{fmtFecha(t.fecha)}</span>}
               {t.monto != null && t.monto !== '' && (
-                <span className="flex-shrink-0 font-semibold" style={{ color: 'var(--text-2)' }}>{fmtMoneda(t.monto)}</span>
+                <span className="flex-shrink-0 font-semibold" style={{ color: 'var(--text-2)' }}>{fmtMoneda(t.monto, t.moneda || 'USD')}</span>
               )}
               {t.persona_encargada && (
                 <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full" style={{ background: 'var(--card)', color: 'var(--text-2)' }}>

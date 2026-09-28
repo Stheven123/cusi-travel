@@ -279,14 +279,15 @@ const getTareasByDetalle = async (detalleId) => {
 const createTareaOperacion = async (detalleId, data) => {
   const { rows } = await query(
     `INSERT INTO cusi.tareas_operacion
-       (detalle_id, titulo, fecha, monto, persona_encargada, completada, orden)
-     VALUES ($1,$2,$3,$4,$5,$6,$7)
+       (detalle_id, titulo, fecha, monto, moneda, persona_encargada, completada, orden)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
      RETURNING *`,
     [
       detalleId,
       data.titulo,
       data.fecha             || null,
       data.monto             ?? null,
+      data.moneda            || 'USD',
       data.persona_encargada || null,
       data.completada        ?? false,
       data.orden             ?? 1,

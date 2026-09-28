@@ -29,6 +29,9 @@ const reservaSchema = z.object({
   operador_nombre:      z.string().max(200).optional().or(z.literal('')).nullable(),
   usuario_operador_id:  z.number().int().positive().optional().nullable(),
   usuario_guia_id:      z.number().int().positive().optional().nullable(),
+  // Guía (proveedor tipo GUIA) — no es columna de reservas: se guarda en la
+  // operación GUIA de la reserva (ver reservas.service -> syncGuiaOperacion).
+  proveedor_guia_id:    z.number().int().positive().optional().nullable(),
   observaciones:        z.string().optional().or(z.literal('')).nullable(),
   notas_internas:       z.string().optional().or(z.literal('')).nullable(),
   modalidad_servicio:   z.enum(['COMPARTIDO', 'PRIVADO']).optional().nullable(),

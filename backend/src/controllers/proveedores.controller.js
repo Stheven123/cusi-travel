@@ -46,20 +46,15 @@ const withFechaCheck = (schema) => schema.refine(
   { message: 'La fecha fin no puede ser anterior a la fecha inicio', path: ['fecha_fin'] }
 );
 
-// INGRESOS es un registro libre (sin proveedor); el resto de tipos sí lo requieren.
-// Solo aplica a create (schema completo) — en updates parciales el campo puede
-// simplemente no venir en el body sin que eso signifique quitar el proveedor.
-const withProveedorCheck = (schema) => schema.refine(
-  d => d.proveedor_id != null || d.tipo_servicio === 'INGRESOS',
-  { message: 'Selecciona un proveedor', path: ['proveedor_id'] }
-);
-
-const detalleSchema = withProveedorCheck(withFechaCheck(detalleSchemaBase));
+// El proveedor es opcional: una operación puede quedar "Sin asignar" (p. ej.
+// creada desde la plantilla del paquete) hasta que el equipo lo asigne.
+const detalleSchema = withFechaCheck(detalleSchemaBase);
 
 const tareaOperacionSchema = z.object({
   titulo:            z.string().min(2).max(300),
   fecha:             z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal('')).nullable(),
   monto:             z.number().optional().nullable(),
+  moneda:            z.enum(['USD','PEN']).optional(),
   persona_encargada: z.string().max(200).optional().or(z.literal('')).nullable(),
   completada:        z.boolean().default(false),
 });
@@ -130,6 +125,7 @@ const tareasInlineSchema = z.array(z.object({
   titulo:            z.string().min(1).max(300),
   fecha:             z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal('')).nullable(),
   monto:             z.number().optional().nullable(),
+  moneda:            z.enum(['USD','PEN']).optional(),
   persona_encargada: z.string().max(200).optional().or(z.literal('')).nullable(),
 })).optional();
 

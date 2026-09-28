@@ -115,7 +115,7 @@ export default function ChecklistGuiaSection() {
                         </span>
                       )}
                       {t.monto != null && (
-                        <span className="text-xs font-bold flex-shrink-0" style={{ color: 'var(--text)' }}>{fmtMoneda(t.monto)}</span>
+                        <span className="text-xs font-bold flex-shrink-0" style={{ color: 'var(--text)' }}>{fmtMoneda(t.monto, t.moneda || 'USD')}</span>
                       )}
                     </div>
                   ))}

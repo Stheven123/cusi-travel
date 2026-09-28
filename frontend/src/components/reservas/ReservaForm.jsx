@@ -7,7 +7,7 @@ import {
 import { ESTADOS_OPERACION, IDIOMAS } from '../../utils/constants';
 import { serviciosApi } from '../../api/servicios.api';
 import { agenciasApi } from '../../api/agencias.api';
-import { usuariosApi } from '../../api/usuarios.api';
+import { proveedoresApi } from '../../api/proveedores.api';
 import Alert from '../ui/Alert';
 import Spinner from '../ui/Spinner';
 import ServiciosAdicionalesForm from './ServiciosAdicionalesForm';
@@ -24,6 +24,7 @@ const EMPTY = {
   precio_usd_por_pax: 0, total_usd: 0, adelanto_usd: 0, descuento_usd: 0,
   agencia_nombre: '', agencia_codigo: '', operador_nombre: '',
   usuario_guia_id: '',
+  proveedor_guia_id: '',
 };
 
 /* ── Sección con encabezado visual ── */
@@ -61,7 +62,7 @@ export default function ReservaForm({ inicial, onSave, onCancel }) {
     ...inicial,
     fecha_inicio: inicial?.fecha_inicio?.slice(0, 10) || '',
     fecha_fin:    inicial?.fecha_fin?.slice(0, 10)    || '',
-    usuario_guia_id: inicial?.usuario_guia_id ?? '',
+    proveedor_guia_id: inicial?.proveedor_guia_id ?? '',
     modalidad_servicio: inicial?.modalidad_servicio ?? '',
   });
   const [servicios, setServs] = useState([]);
@@ -85,7 +86,8 @@ export default function ReservaForm({ inicial, onSave, onCancel }) {
         setModoOtraAgencia(true);
       }
     }).catch(() => {});
-    usuariosApi.getAll().then(r => setGuias((r.data || []).filter(u => u.rol === 'GUIA'))).catch(() => {});
+    // Guías = proveedores de tipo GUIA (los mismos que se asignan en Operaciones).
+    proveedoresApi.getAll({ tipo: 'GUIA', activo: true }).then(r => setGuias(r.data || [])).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -132,6 +134,7 @@ export default function ReservaForm({ inicial, onSave, onCancel }) {
       const payload = { ...form,
         servicio_id:        form.servicio_id        ? Number(form.servicio_id) : undefined,
         usuario_guia_id:    form.usuario_guia_id     ? Number(form.usuario_guia_id) : null,
+        proveedor_guia_id:  form.proveedor_guia_id   ? Number(form.proveedor_guia_id) : null,
         n_pasajeros:        Number(form.n_pasajeros) || 1,
         precio_usd_por_pax: Number(form.precio_usd_por_pax),
         total_usd:          Number(form.total_usd),
@@ -256,10 +259,11 @@ export default function ReservaForm({ inicial, onSave, onCancel }) {
             </div>
           </Field>
           <Field label="Guía asignado">
-            <select value={form.usuario_guia_id} onChange={e => set('usuario_guia_id', e.target.value)}
+            {/* Se sincroniza con la operación GUIA de la reserva (pestaña Operaciones). */}
+            <select value={form.proveedor_guia_id} onChange={e => set('proveedor_guia_id', e.target.value)}
               className="input-field">
               <option value="">— Sin asignar —</option>
-              {guias.map(g => <option key={g.id} value={g.id}>{g.nombre} {g.apellido}</option>)}
+              {guias.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
             </select>
           </Field>
           <Field label="Estado operación">

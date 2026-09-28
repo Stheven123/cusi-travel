@@ -250,7 +250,7 @@ function TareaOperacionRow({ t, onToggle, onEditar, navigate }) {
         </div>
       </div>
       {t.monto != null && (
-        <span className="text-sm font-bold flex-shrink-0" style={{ color: 'var(--text)' }}>{fmtMoneda(t.monto)}</span>
+        <span className="text-sm font-bold flex-shrink-0" style={{ color: 'var(--text)' }}>{fmtMoneda(t.monto, t.moneda || 'USD')}</span>
       )}
       <button onClick={() => onEditar(t)}
         className="text-xs px-2 py-1.5 rounded-lg transition-colors cursor-pointer flex-shrink-0 min-h-[36px]"
@@ -267,6 +267,7 @@ function TareaOperacionForm({ inicial, onSave, onCancel }) {
     titulo: inicial?.titulo || '',
     fecha: inicial?.fecha ? inicial.fecha.slice(0, 10) : '',
     monto: inicial?.monto ?? '',
+    moneda: inicial?.moneda || 'USD',
     persona_encargada: inicial?.persona_encargada || '',
   });
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
@@ -277,6 +278,7 @@ function TareaOperacionForm({ inicial, onSave, onCancel }) {
       titulo: f.titulo,
       fecha: f.fecha || null,
       monto: f.monto === '' ? null : Number(f.monto),
+      moneda: f.moneda || 'USD',
       persona_encargada: f.persona_encargada || null,
     });
   };
@@ -294,8 +296,15 @@ function TareaOperacionForm({ inicial, onSave, onCancel }) {
         </div>
         <div>
           <label className="label">Monto</label>
-          <input type="number" step="0.01" className="input-field" value={f.monto}
-            onChange={e => set('monto', e.target.value)} placeholder="0.00" />
+          <div className="flex gap-2">
+            <select className="input-field" style={{ width: '5.5rem', flexShrink: 0 }} value={f.moneda}
+              onChange={e => set('moneda', e.target.value)}>
+              <option value="USD">USD $</option>
+              <option value="PEN">PEN S/</option>
+            </select>
+            <input type="number" step="0.01" className="input-field" value={f.monto}
+              onChange={e => set('monto', e.target.value)} placeholder="0.00" />
+          </div>
         </div>
       </div>
       <div>

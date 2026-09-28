@@ -40,7 +40,7 @@ const instanciarPlantillaOperaciones = async (client, servicioId, reservaId, fec
     const detalleId = det[0].id;
 
     const { rows: tareasPlantilla } = await client.query(
-      'SELECT titulo, fecha, monto, persona_encargada FROM cusi.plantilla_tareas_operacion WHERE plantilla_operacion_id = $1 ORDER BY orden, id',
+      'SELECT titulo, fecha, monto, moneda, persona_encargada FROM cusi.plantilla_tareas_operacion WHERE plantilla_operacion_id = $1 ORDER BY orden, id',
       [pl.id]
     );
     const tareas = tareasPlantilla.length
@@ -50,11 +50,65 @@ const instanciarPlantillaOperaciones = async (client, servicioId, reservaId, fec
     for (let i = 0; i < tareas.length; i++) {
       const t = tareas[i];
       await client.query(
-        `INSERT INTO cusi.tareas_operacion (detalle_id, titulo, fecha, monto, persona_encargada, orden)
-         VALUES ($1,$2,$3,$4,$5,$6)`,
-        [detalleId, t.titulo, t.fecha || null, t.monto ?? null, t.persona_encargada || null, i + 1]
+        `INSERT INTO cusi.tareas_operacion (detalle_id, titulo, fecha, monto, moneda, persona_encargada, orden)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [detalleId, t.titulo, t.fecha || null, t.monto ?? null, t.moneda || 'USD', t.persona_encargada || null, i + 1]
       );
     }
+  }
+};
+
+// El guía de una reserva sale de sus operaciones de tipo GUIA (proveedor
+// asignado en la pestaña Operaciones). El guía "usuario" (usuario_guia_id)
+// queda solo como respaldo para reservas antiguas sin operación GUIA.
+const GUIA_SELECT_SQL = `
+            (SELECT dg.proveedor_id FROM cusi.detalles_operacion_proveedor dg
+              WHERE dg.reserva_id = r.id AND dg.tipo_servicio = 'GUIA' AND dg.proveedor_id IS NOT NULL
+              ORDER BY dg.fecha_inicio, dg.id LIMIT 1) AS proveedor_guia_id,
+            COALESCE(
+              (SELECT string_agg(DISTINCT pg.nombre, ', ')
+                 FROM cusi.detalles_operacion_proveedor dg
+                 JOIN cusi.proveedores pg ON pg.id = dg.proveedor_id
+                WHERE dg.reserva_id = r.id AND dg.tipo_servicio = 'GUIA'),
+              NULLIF(TRIM(CONCAT(ug.nombre, ' ', ug.apellido)), '')
+            ) AS guia_nombre`;
+
+// Guarda el guía elegido en "Información de la reserva" dentro de la
+// operación GUIA de la reserva (una sola fuente de verdad con Operaciones):
+// - si ya hay una operación GUIA, se le cambia el proveedor;
+// - si no hay ninguna y se eligió un guía, se crea con el checklist estándar.
+const syncGuiaOperacion = async (client, reservaId, proveedorGuiaId) => {
+  const nuevo = proveedorGuiaId || null;
+  const { rows: ops } = await client.query(
+    `SELECT id, proveedor_id FROM cusi.detalles_operacion_proveedor
+     WHERE reserva_id = $1 AND tipo_servicio = 'GUIA' ORDER BY fecha_inicio, id`,
+    [reservaId]
+  );
+  if (ops.length) {
+    const actual = ops.find(o => o.proveedor_id != null) || ops[0];
+    if ((actual.proveedor_id || null) === nuevo) return;
+    await client.query(
+      'UPDATE cusi.detalles_operacion_proveedor SET proveedor_id = $2 WHERE id = $1',
+      [actual.id, nuevo]
+    );
+    return;
+  }
+  if (!nuevo) return;
+
+  const { rows: res } = await client.query('SELECT fecha_inicio FROM cusi.reservas WHERE id = $1', [reservaId]);
+  const { rows: det } = await client.query(
+    `INSERT INTO cusi.detalles_operacion_proveedor
+       (reserva_id, proveedor_id, tipo_servicio, descripcion, fecha_inicio,
+        cantidad, costo_unitario_usd, moneda, estado)
+     VALUES ($1,$2,'GUIA','Guía',$3,1,0,'USD','PENDIENTE')
+     RETURNING id`,
+    [reservaId, nuevo, res[0]?.fecha_inicio || fechaLimaISO(new Date())]
+  );
+  for (let i = 0; i < CHECKLIST_GUIA_DEFAULT.length; i++) {
+    await client.query(
+      `INSERT INTO cusi.tareas_operacion (detalle_id, titulo, orden) VALUES ($1,$2,$3)`,
+      [det[0].id, CHECKLIST_GUIA_DEFAULT[i], i + 1]
+    );
   }
 };
 
@@ -115,8 +169,7 @@ const getAll = async (q = {}) => {
             st.nombre           AS servicio_nombre,
             st.tipo             AS servicio_tipo,
             st.duracion_dias,
-            uo.nombre || ' ' || uo.apellido AS operador_nombre,
-            ug.nombre || ' ' || ug.apellido AS guia_nombre,
+            uo.nombre || ' ' || uo.apellido AS operador_nombre,${GUIA_SELECT_SQL},
             COUNT(p.id)::int    AS pasajeros_registrados,
             COUNT(t.id) FILTER (WHERE t.estado IN ('PENDIENTE','EN_PROGRESO'))::int AS tareas_activas
      FROM cusi.reservas r
@@ -160,8 +213,7 @@ const getById = async (id) => {
     `SELECT r.*,
             st.nombre AS servicio_nombre, st.tipo AS servicio_tipo, st.duracion_dias,
             uo.nombre || ' ' || uo.apellido AS operador_nombre,
-            uc.nombre || ' ' || uc.apellido AS creador_nombre,
-            ug.nombre || ' ' || ug.apellido AS guia_nombre
+            uc.nombre || ' ' || uc.apellido AS creador_nombre,${GUIA_SELECT_SQL}
      FROM cusi.reservas r
      LEFT JOIN cusi.servicios_turisticos st ON st.id = r.servicio_id
      LEFT JOIN cusi.usuarios uo             ON uo.id = r.usuario_operador_id
@@ -267,6 +319,12 @@ const create = async (data, userId) => {
     if (data.servicio_id) {
       await instanciarPlantillaOperaciones(client, data.servicio_id, newId, data.fecha_inicio);
     }
+    // Después de la plantilla: si el paquete trae una operación GUIA
+    // "sin asignar", el guía elegido en el formulario se le asigna a ella.
+    // (Sin guía elegido no se toca: se respeta el que traiga la plantilla.)
+    if (data.proveedor_guia_id) {
+      await syncGuiaOperacion(client, newId, data.proveedor_guia_id);
+    }
     await syncServiciosAdicionales(client, newId, data.servicios_adicionales);
 
     await client.query(
@@ -280,9 +338,9 @@ const create = async (data, userId) => {
 };
 
 const update = async (id, data, userId) => {
-  const { servicios_adicionales, ...camposReserva } = data;
+  const { servicios_adicionales, proveedor_guia_id, ...camposReserva } = data;
   const campos = Object.keys(camposReserva);
-  if (!campos.length && servicios_adicionales === undefined) {
+  if (!campos.length && servicios_adicionales === undefined && proveedor_guia_id === undefined) {
     throw new AppError('Sin datos para actualizar', 400, 'EMPTY_UPDATE');
   }
 
@@ -308,6 +366,9 @@ const update = async (id, data, userId) => {
 
     if (servicios_adicionales !== undefined) {
       await syncServiciosAdicionales(client, id, servicios_adicionales);
+    }
+    if (proveedor_guia_id !== undefined) {
+      await syncGuiaOperacion(client, id, proveedor_guia_id);
     }
 
     if (!updated) {
