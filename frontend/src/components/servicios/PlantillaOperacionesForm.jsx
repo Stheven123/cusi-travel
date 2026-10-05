@@ -42,7 +42,7 @@ function TareaInputs({ value, onChange, onSubmit, onCancel, editando }) {
   };
   return (
     <div className="flex flex-wrap items-end gap-2">
-      <input className="input-field text-xs flex-1 min-w-[140px]" placeholder={editando ? 'Título de la tarea' : 'Nueva tarea del checklist...'}
+      <input className="input-field text-xs flex-1 basis-full sm:basis-auto min-w-[140px]" placeholder={editando ? 'Título de la tarea' : 'Nueva tarea del checklist...'}
         value={value.titulo} onChange={e => set('titulo', e.target.value)} onKeyDown={onKeyDown} autoFocus={editando} />
       <input type="date" className="input-field text-xs" style={{ width: '9.5rem' }}
         value={value.fecha} onChange={e => set('fecha', e.target.value)} onKeyDown={onKeyDown} />
@@ -142,7 +142,7 @@ export default function PlantillaOperacionesForm({ operaciones = [], proveedores
     return (
       <div key={k} className="rounded-xl overflow-hidden"
         style={{ border: '1px solid var(--border)', opacity: dragKey === k ? 0.5 : 1 }}>
-        <div className="flex items-center gap-2 px-3 py-2.5 cursor-pointer" style={{ background: 'var(--card-2)' }}
+        <div className="flex flex-wrap items-center gap-2 px-3 py-2.5 cursor-pointer" style={{ background: 'var(--card-2)' }}
           draggable
           onDragStart={e => { setDragKey(k); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', k); }}
           onDragEnd={() => { setDragKey(null); setDropDia(null); }}
@@ -151,7 +151,7 @@ export default function PlantillaOperacionesForm({ operaciones = [], proveedores
           <span className="text-xs font-bold px-2 py-1 rounded-lg flex-shrink-0" style={{ background: 'var(--brand-bg)', color: 'var(--brand)' }}>
             {op.tipo_servicio || '—'}
           </span>
-          <p className="flex-1 min-w-0 text-sm truncate" style={{ color: 'var(--text)' }}>
+          <p className="flex-1 min-w-[8rem] text-sm truncate" style={{ color: 'var(--text)' }}>
             {op.descripcion || <span style={{ color: 'var(--text-3)' }}>Operación sin descripción</span>}
           </p>
           {(op.tareas || []).length > 0 && (
@@ -173,7 +173,7 @@ export default function PlantillaOperacionesForm({ operaciones = [], proveedores
 
         {expanded[k] && (
           <div className="p-4 space-y-3" style={{ background: 'var(--card)' }}>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="label">Tipo de operación <span style={{ color: '#ef4444' }}>*</span></label>
                 <select className="input-field" value={op.tipo_servicio}
@@ -198,7 +198,7 @@ export default function PlantillaOperacionesForm({ operaciones = [], proveedores
               <input className="input-field" value={op.descripcion || ''}
                 onChange={e => updateOp(k, { descripcion: e.target.value })} placeholder="Ej: Guía principal del trek" />
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div>
                 <label className="label">Cantidad</label>
                 <input type="number" min="1" className="input-field" value={op.cantidad}
@@ -289,7 +289,7 @@ export default function PlantillaOperacionesForm({ operaciones = [], proveedores
             onDragOver={e => { if (dragKey) { e.preventDefault(); setDropDia(dia); } }}
             onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setDropDia(null); }}
             onDrop={e => { e.preventDefault(); if (dragKey) moverADia(dragKey, dia); setDragKey(null); setDropDia(null); }}>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs font-black px-2.5 py-1 rounded-lg" style={{ background: 'var(--brand)', color: 'white' }}>
                 Día {dia}
               </span>

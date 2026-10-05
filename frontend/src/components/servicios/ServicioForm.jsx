@@ -126,10 +126,10 @@ export default function ServicioForm({ inicial, onSave, onSaved, onCancel }) {
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && <Alert type="error" message={error} onClose={() => setError('')} />}
 
-      <div className="flex gap-1" style={{ borderBottom: '2px solid var(--border)' }}>
+      <div className="flex gap-1 overflow-x-auto -mx-1 px-1" style={{ borderBottom: '2px solid var(--border)' }}>
         {TABS.map((t, i) => (
           <button key={t} type="button" onClick={() => setTab(i)}
-            className="px-3 py-2 text-xs font-semibold border-b-2 -mb-0.5 transition-colors cursor-pointer"
+            className="px-3 py-2 text-xs font-semibold border-b-2 -mb-0.5 transition-colors cursor-pointer whitespace-nowrap flex-shrink-0"
             style={tab === i
               ? { borderColor: 'var(--brand)', color: 'var(--brand)' }
               : { borderColor: 'transparent', color: 'var(--text-2)' }}>
@@ -159,7 +159,7 @@ export default function ServicioForm({ inicial, onSave, onSaved, onCancel }) {
       )}
 
       <div className={tab === 0 ? 'space-y-4' : 'hidden'}>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="label">Código <span className="text-red-500">*</span></label>
           <input value={form.codigo} onChange={e => set('codigo', e.target.value.toUpperCase())}
@@ -172,8 +172,8 @@ export default function ServicioForm({ inicial, onSave, onSaved, onCancel }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        <div className="col-span-2 sm:col-span-1">
           <label className="label">Tipo</label>
           <select value={form.tipo} onChange={e => set('tipo', e.target.value)} className="input-field">
             {TIPOS_SERVICIO.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
@@ -191,8 +191,8 @@ export default function ServicioForm({ inicial, onSave, onSaved, onCancel }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        <div className="col-span-2 sm:col-span-1">
           <label className="label">Dificultad</label>
           <select value={form.nivel_dificultad} onChange={e => set('nivel_dificultad', e.target.value)} className="input-field">
             <option value="">— Sin nivel —</option>
@@ -216,7 +216,7 @@ export default function ServicioForm({ inicial, onSave, onSaved, onCancel }) {
         <textarea rows={3} value={form.descripcion} onChange={e => set('descripcion', e.target.value)}
           className="input-field resize-none" />
       </div>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[['incluye','✓ Incluye'],['no_incluye','✗ No incluye'],['que_llevar','Qué llevar']].map(([k, lbl]) => (
           <div key={k}>
             <label className="label">{lbl}</label>
@@ -234,7 +234,7 @@ export default function ServicioForm({ inicial, onSave, onSaved, onCancel }) {
           placeholder={'Cancelación 15+ días antes: reembolso completo.\nCancelación 7-14 días antes: reembolso del 50%.\nCancelación < 7 días: sin reembolso.'} />
       </div>
 
-      <div className="flex items-center gap-6">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
         {[['activo','Activo'],['es_plantilla','Es plantilla']].map(([k, lbl]) => (
           <label key={k} className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" checked={!!form[k]} onChange={e => set(k, e.target.checked)}
@@ -245,9 +245,9 @@ export default function ServicioForm({ inicial, onSave, onSaved, onCancel }) {
       </div>
       </div>
 
-      <div className="flex gap-3 justify-end pt-2">
-        <button type="button" onClick={onCancel} className="btn-secondary">Cancelar</button>
-        <button type="submit" disabled={saving} className="btn-primary">
+      <div className="flex flex-col-reverse sm:flex-row gap-3 sm:justify-end pt-2">
+        <button type="button" onClick={onCancel} className="btn-secondary justify-center">Cancelar</button>
+        <button type="submit" disabled={saving} className="btn-primary justify-center">
           {saving && <Spinner size="sm" />}
           {form.id ? 'Guardar cambios' : 'Crear servicio'}
         </button>

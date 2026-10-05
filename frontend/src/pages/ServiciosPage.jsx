@@ -25,7 +25,17 @@ const TIPO_META = {
   PAQUETE_COMPLETO: { label: 'Paquete completo', icon: Package,   bg: 'from-brand-600 to-brand-800' },
 };
 
-const DIFICULTAD_STARS = { FACIL: 1, MODERADO: 2, DIFICIL: 3, MUY_DIFICIL: 4, EXTREMO: 5 };
+// Precio compacto para la tarjeta: "$55", "$1,200", "$85.50" (sin ",00" de más
+// ni el prefijo "USD" que hacía que el número se partiera en dos líneas).
+const fmtPrecioCorto = (n) => {
+  const v = Number(n || 0);
+  return '$' + v.toLocaleString('en-US', {
+    minimumFractionDigits: Number.isInteger(v) ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
+};
+
+const DIFICULTAD_STARS ={ FACIL: 1, MODERADO: 2, DIFICIL: 3, MUY_DIFICIL: 4, EXTREMO: 5 };
 const DIFICULTAD_LABEL = {
   FACIL: 'Fácil', MODERADO: 'Moderado', DIFICIL: 'Difícil',
   MUY_DIFICIL: 'Muy difícil', EXTREMO: 'Extremo',
@@ -53,7 +63,7 @@ function ServicioCard({ s, onEditar, onClonar, onCotizar }) {
     <article className="rounded-2xl overflow-hidden transition-all"
       style={{ background: 'var(--card)', boxShadow: 'var(--shadow-sm)' }}>
       {/* ── Franja superior coloreada ── */}
-      <div className={`bg-gradient-to-r ${meta.bg} px-4 md:px-5 py-3 md:py-5 flex items-center justify-between`}>
+      <div className={`bg-gradient-to-r ${meta.bg} px-4 md:px-5 py-3 md:py-4 flex items-center justify-between gap-2`}>
         <div className="flex items-center gap-2.5 md:gap-3 min-w-0">
           <div className="w-7 h-7 md:w-11 md:h-11 bg-white/20 rounded-lg md:rounded-xl flex items-center justify-center flex-shrink-0">
             <Icon size={15} className="md:hidden text-white" />
@@ -68,33 +78,36 @@ function ServicioCard({ s, onEditar, onClonar, onCotizar }) {
           {!s.activo && (
             <span className="bg-black/30 text-white text-xs px-1.5 py-0.5 rounded">Inact.</span>
           )}
-          <span className="bg-white/20 text-white text-xs md:text-sm px-2 md:px-3 py-0.5 rounded-full">{meta.label}</span>
+          <span className="bg-white/20 text-white text-xs px-2 md:px-2.5 py-0.5 rounded-full whitespace-nowrap">{meta.label}</span>
         </div>
       </div>
 
-      {/* ── Stats en fila ── */}
-      <div className="flex items-center" style={{ borderBottom: '1px solid var(--border)' }}>
-        <div className="flex-1 min-w-0 px-3 md:px-4 py-2.5 md:py-4 text-center" style={{ borderRight: '1px solid var(--border)' }}>
-          <p className="text-base md:text-xl font-bold break-words" style={{ color: 'var(--text)' }}>{s.duracion_dias}</p>
-          <p className="text-xs md:text-sm" style={{ color: 'var(--text-3)' }}>día{s.duracion_dias !== 1 ? 's' : ''}</p>
+      {/* ── Stats en fila ── (los números nunca se parten: whitespace-nowrap) */}
+      <div className="grid grid-cols-[1fr_1.5fr_1.3fr_1fr]" style={{ borderBottom: '1px solid var(--border)' }}>
+        <div className="min-w-0 px-2 py-3 text-center" style={{ borderRight: '1px solid var(--border)' }}>
+          <p className="text-lg font-bold leading-tight tabular-nums whitespace-nowrap" style={{ color: 'var(--text)' }}>{s.duracion_dias}</p>
+          <p className="text-xs" style={{ color: 'var(--text-3)' }}>día{s.duracion_dias !== 1 ? 's' : ''}</p>
         </div>
-        <div className="flex-1 min-w-0 px-3 md:px-4 py-2.5 md:py-4 text-center" style={{ borderRight: '1px solid var(--border)' }}>
-          <p className="text-base md:text-xl font-bold break-words" style={{ color: 'var(--brand)' }}>{fmtMoneda(s.precio_base_usd)}</p>
-          <p className="text-xs md:text-sm" style={{ color: 'var(--text-3)' }}>/ pax</p>
+        <div className="min-w-0 px-2 py-3 text-center" style={{ borderRight: '1px solid var(--border)' }}>
+          <p className="text-lg font-bold leading-tight tabular-nums whitespace-nowrap truncate" style={{ color: 'var(--brand)' }}
+            title={fmtMoneda(s.precio_base_usd)}>
+            {fmtPrecioCorto(s.precio_base_usd)}
+          </p>
+          <p className="text-xs whitespace-nowrap" style={{ color: 'var(--text-3)' }}>USD / pax</p>
         </div>
-        <div className="flex-1 min-w-0 px-3 md:px-4 py-2.5 md:py-4 text-center" style={{ borderRight: '1px solid var(--border)' }}>
+        <div className="min-w-0 px-2 py-3 flex flex-col items-center justify-center" style={{ borderRight: '1px solid var(--border)' }}>
           {s.nivel_dificultad ? (
             <>
               <Stars nivel={s.nivel_dificultad} />
-              <p className="text-xs md:text-sm mt-0.5" style={{ color: 'var(--text-2)' }}>{DIFICULTAD_LABEL[s.nivel_dificultad]}</p>
+              <p className="text-xs mt-1 whitespace-nowrap truncate max-w-full" style={{ color: 'var(--text-2)' }}>{DIFICULTAD_LABEL[s.nivel_dificultad]}</p>
             </>
           ) : (
             <p className="text-xs" style={{ color: 'var(--text-3)' }}>—</p>
           )}
         </div>
-        <div className="flex-1 px-3 md:px-4 py-2.5 md:py-4 text-center">
-          <p className="text-base md:text-xl font-bold" style={{ color: 'var(--text)' }}>{s.total_dias_itinerario || 0}</p>
-          <p className="text-xs md:text-sm" style={{ color: 'var(--text-3)' }}>etapas</p>
+        <div className="min-w-0 px-2 py-3 text-center">
+          <p className="text-lg font-bold leading-tight tabular-nums whitespace-nowrap" style={{ color: 'var(--text)' }}>{s.total_dias_itinerario || 0}</p>
+          <p className="text-xs" style={{ color: 'var(--text-3)' }}>etapas</p>
         </div>
       </div>
 
@@ -220,7 +233,7 @@ function CotizadorModal({ servicio, onClose }) {
       <div className="rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
         style={{ background: 'var(--card)', boxShadow: 'var(--shadow-lg)' }}>
         {/* Header */}
-        <div className="bg-gradient-to-r from-brand-600 to-brand-800 px-6 py-4 rounded-t-2xl flex items-center justify-between">
+        <div className="bg-gradient-to-r from-brand-600 to-brand-800 px-4 sm:px-6 py-4 rounded-t-2xl flex items-center justify-between gap-3">
           <div>
             <p className="text-white/70 text-xs font-medium mb-0.5">GENERAR COTIZACIÓN</p>
             <h2 className="text-white font-bold text-base leading-tight">{servicio.nombre}</h2>
@@ -233,12 +246,12 @@ function CotizadorModal({ servicio, onClose }) {
           </button>
         </div>
 
-        <div className="p-6 space-y-5">
+        <div className="p-4 sm:p-6 space-y-5">
           {/* Datos del cliente */}
           <div>
             <h3 className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: 'var(--text-2)' }}>Datos del cliente</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2 sm:col-span-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="sm:col-span-1">
                 <label className="label">Nombre del cliente <span className="text-red-500">*</span></label>
                 <div className="relative">
                   <Users size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -265,7 +278,7 @@ function CotizadorModal({ servicio, onClose }) {
                   onChange={e => set('cliente_ciudad', e.target.value)}
                   placeholder="New York, USA" />
               </div>
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
                 <label className="label">Agencia / Operadora</label>
                 <div className="relative">
                   <MapPin size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -313,7 +326,7 @@ function CotizadorModal({ servicio, onClose }) {
           {/* Precio */}
           <div>
             <h3 className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: 'var(--text-2)' }}>Precio</h3>
-            <div className="grid grid-cols-2 gap-3 items-end">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
               <div>
                 <label className="label">Descuento (%)</label>
                 <div className="relative">
@@ -385,7 +398,7 @@ function CotizadorModal({ servicio, onClose }) {
                 <span>PDF generado: <strong>{generated}</strong> — revisa tus descargas.</span>
               </div>
             )}
-            <div className="flex gap-3">
+            <div className="flex flex-col-reverse sm:flex-row gap-3">
               <button onClick={onClose} className="btn-secondary flex-1">Cancelar</button>
               <button
                 onClick={handleGenerar}
@@ -467,7 +480,7 @@ export default function ServiciosPage() {
 
       {/* Toolbar */}
       <div className="flex flex-wrap gap-3 items-center">
-        <div className="relative flex-1 max-w-xs">
+        <div className="relative w-full lg:w-auto lg:flex-1 lg:max-w-xs">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input className="input-field pl-9 text-sm" placeholder="Buscar paquete..." value={busqueda}
             onChange={e => setBusqueda(e.target.value)} />
@@ -498,7 +511,7 @@ export default function ServiciosPage() {
         </div>
 
         <button onClick={() => { setEditando(null); setModal(true); }}
-          className="btn-primary ml-auto text-sm">
+          className="btn-primary w-full sm:w-auto justify-center sm:ml-auto text-sm">
           <Plus size={15} /> Nuevo paquete
         </button>
       </div>
@@ -510,7 +523,7 @@ export default function ServiciosPage() {
           <p className="text-sm">Sin paquetes registrados</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
           {filtrados.map(s => (
             <ServicioCard
               key={s.id}

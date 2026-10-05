@@ -78,7 +78,7 @@ export default function ItinerarioForm({ itinerarios = [], onChange }) {
                   placeholder="Descripción del día..." />
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="label">Altitud máx (msnm)</label>
                   <input type="number" className="input-field" value={dia.altitud_max_msnm}
@@ -99,7 +99,7 @@ export default function ItinerarioForm({ itinerarios = [], onChange }) {
               {/* Comidas */}
               <div>
                 <label className="label">Comidas incluidas</label>
-                <div className="flex gap-4">
+                <div className="flex flex-wrap gap-x-4 gap-y-2">
                   {[['desayuno','Desayuno'],['almuerzo','Almuerzo'],['cena','Cena'],['box_lunch','Box Lunch']].map(([key, label]) => (
                     <label key={key} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
                       <input type="checkbox" className="accent-brand-600 w-4 h-4"
