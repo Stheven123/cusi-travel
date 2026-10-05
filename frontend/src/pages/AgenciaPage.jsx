@@ -114,7 +114,7 @@ export default function AgenciaPage() {
       )}
 
       {/* Hero */}
-      <div className="bg-gradient-to-br from-brand-600 to-brand-800 rounded-2xl md:rounded-3xl p-6 md:p-10 text-white flex items-center gap-5 md:gap-8">
+      <div className="bg-gradient-to-br from-brand-600 to-brand-800 rounded-2xl md:rounded-3xl p-6 md:p-10 text-white flex flex-wrap items-center gap-5 md:gap-8">
         <div className="w-20 h-20 md:w-28 md:h-28 bg-white/10 rounded-2xl flex items-center justify-center flex-shrink-0 border-2 border-white/20 overflow-hidden">
           {logoPreview
             ? <img src={logoPreview} alt="Logo" className="w-full h-full object-contain p-1" />
@@ -122,7 +122,7 @@ export default function AgenciaPage() {
           }
         </div>
         <div className="flex-1 min-w-0">
-          <h1 className="text-xl md:text-3xl font-bold">{form.nombre || 'Mi Agencia'}</h1>
+          <h1 className="text-xl md:text-3xl font-bold break-words">{form.nombre || 'Mi Agencia'}</h1>
           {form.slogan && <p className="text-white/70 text-sm md:text-base italic mt-0.5 md:mt-1">{form.slogan}</p>}
           <div className="flex flex-wrap gap-3 mt-2 md:mt-3 text-white/60 text-xs md:text-sm">
             {form.ciudad && <span>{form.ciudad}, {form.pais}</span>}
@@ -131,7 +131,7 @@ export default function AgenciaPage() {
           </div>
         </div>
         <button onClick={() => setShow(true)}
-          className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white text-xs md:text-sm font-medium px-3 md:px-5 py-2 md:py-3 rounded-lg md:rounded-xl transition-colors flex-shrink-0">
+          className="flex items-center justify-center gap-1.5 bg-white/10 hover:bg-white/20 text-white text-xs md:text-sm font-medium px-3 md:px-5 py-2 md:py-3 rounded-lg md:rounded-xl transition-colors w-full sm:w-auto flex-shrink-0">
           <Eye size={14} className="md:hidden" /><Eye size={18} className="hidden md:block" /> Vista previa PDF
         </button>
       </div>

@@ -196,8 +196,8 @@ function TareaCard({ t, hoy, onCompletar, onEditar }) {
           <User size={11} />{t.asignado_a || "Sin asignar"}
         </span>
       </div>
-      <div className="flex items-center justify-between pt-1" style={{ borderTop: '1px solid var(--border)' }}>
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-1" style={{ borderTop: '1px solid var(--border)' }}>
+        <div className="flex flex-wrap items-center gap-2">
           <EstadoTareaBadge estado={t.estado} />
           {t.fecha_vencimiento && (
             <span className={`text-xs flex items-center gap-1 ${vencida ? "text-red-600 font-semibold" : ""}`}

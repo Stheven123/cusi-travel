@@ -34,9 +34,13 @@ app.use(express.urlencoded({ extended: true }));
 if (env.NODE_ENV !== 'test') app.use(morgan('dev'));
 
 // ── Rate limiting global ──────────────────────────────────
+// El límite es por IP y todo el equipo de una oficina suele salir por la
+// misma IP. Con 300 / 15 min, abrir unas cuantas reservas (≈8 llamadas cada
+// una) y usar los buscadores (1 llamada por búsqueda) bastaba para bloquear
+// a todos con "Demasiadas solicitudes". El login mantiene su límite estricto.
 app.use(rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 300,
+  max: 3000,
   standardHeaders: true,
   legacyHeaders:   false,
   message: { ok: false, error: 'Demasiadas solicitudes', code: 'RATE_LIMITED' },

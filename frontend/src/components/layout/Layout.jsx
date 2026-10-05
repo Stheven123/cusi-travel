@@ -15,6 +15,7 @@ const TITLES = {
   '/calendario':  'Calendario',
   '/finanzas':    'Finanzas',
   '/operaciones': 'Operaciones',
+  '/agencias':    'Agencias',
 };
 
 export default function Layout() {

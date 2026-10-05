@@ -395,11 +395,11 @@ function OperacionRow({ d, onEdit, onDelete, totalDias, diaActual, onMover, onDr
       onDragEnd={() => onDragEnd?.()}
       style={{ background: 'var(--card)', boxShadow: 'var(--shadow-sm)', opacity: dragging ? 0.5 : 1 }}>
       <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl" style={{ background: clr }} />
-      <div className="flex items-start gap-3">
+      <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
         {onDragStart && (
           <GripVertical size={15} className="flex-shrink-0 mt-0.5 cursor-grab" style={{ color: 'var(--text-3)' }} />
         )}
-        <div className="pl-2 flex-1 min-w-0">
+        <div className="pl-2 flex-1 min-w-[12rem]">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="font-semibold text-sm" style={{ color: 'var(--text)' }}>
               {d.proveedor_nombre || (d.tipo_servicio === 'INGRESOS'
@@ -458,7 +458,7 @@ function OperacionRow({ d, onEdit, onDelete, totalDias, diaActual, onMover, onDr
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
+        <div className="flex items-center gap-2 flex-wrap justify-end w-full sm:w-auto sm:flex-shrink-0">
           {onMover && totalDias > 0 && (
             <select className="input-field text-xs py-1" style={{ width: '6.6rem', paddingLeft: '0.5rem', paddingRight: '1.5rem' }} title="Mover a otro día del viaje"
               value={diaActual ?? ''} onChange={e => onMover(d, Number(e.target.value))}>
@@ -1337,7 +1337,7 @@ export default function ReservaDetallePage() {
         </div>
 
         <div className="relative">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
             <div className="min-w-0 flex-1">
               <p className="font-mono font-black text-2xl text-white leading-none">{reserva.codigo_reserva}</p>
               <p className="text-white/70 text-sm mt-1 font-medium leading-snug truncate">
@@ -1348,7 +1348,7 @@ export default function ReservaDetallePage() {
               )}
             </div>
 
-            <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex flex-wrap items-center gap-2 lg:flex-shrink-0">
               {/* Dropdown estado */}
               <div className="relative">
                 <button

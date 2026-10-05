@@ -6,13 +6,15 @@ const getAll = async (q = {}) => {
   const values = [];
   let   idx    = 1;
 
-  if (q.tipo)    { conds.push(`tipo = $${idx++}`);             values.push(q.tipo); }
+  if (q.tipo)    { conds.push(`s.tipo = $${idx++}`);             values.push(q.tipo); }
   if (q.activo !== undefined) {
-    conds.push(`activo = $${idx++}`);
+    conds.push(`s.activo = $${idx++}`);
     values.push(q.activo === 'true' || q.activo === true);
   }
+  // Columnas con prefijo "s.": la consulta une usuarios, que también tiene
+  // nombre/activo — sin prefijo la búsqueda fallaba con "column is ambiguous".
   if (q.busqueda) {
-    conds.push(`(nombre ILIKE $${idx} OR codigo ILIKE $${idx})`);
+    conds.push(`(s.nombre ILIKE $${idx} OR s.codigo ILIKE $${idx})`);
     values.push(`%${q.busqueda}%`);
     idx++;
   }
@@ -169,13 +171,76 @@ const update = async (id, data) => {
   });
 };
 
-// Llama a la función SQL fn_clonar_servicio que clona servicio + itinerarios
+// Clona un paquete completo: datos, itinerario, operaciones de plantilla (con
+// su checklist) y catálogo de extras. Antes se usaba la función SQL
+// fn_clonar_servicio, que fallaba en producción (sus tablas no llevan el
+// esquema "cusi." y el search_path de la BD no lo incluye) y además no copiaba
+// operaciones, checklist, extras ni la política de cancelación.
 const clonar = async (id, nuevoCodigo, nuevoNombre, userId) => {
-  const { rows } = await query(
-    'SELECT cusi.fn_clonar_servicio($1, $2, $3, $4) AS nuevo_id',
-    [id, nuevoCodigo, nuevoNombre, userId]
-  );
-  const nuevoId = rows[0].nuevo_id;
+  const nuevoId = await withTransaction(async (client) => {
+    const { rows: origen } = await client.query('SELECT id FROM cusi.servicios_turisticos WHERE id = $1', [id]);
+    if (!origen.length) throw new AppError('Paquete origen no encontrado', 404, 'NOT_FOUND');
+    const { rows: dup } = await client.query('SELECT 1 FROM cusi.servicios_turisticos WHERE codigo = $1', [nuevoCodigo]);
+    if (dup.length) throw new AppError(`El código ${nuevoCodigo} ya está en uso`, 409, 'DUPLICATE');
+
+    const { rows } = await client.query(
+      `INSERT INTO cusi.servicios_turisticos (
+         codigo, nombre, descripcion, tipo, duracion_dias, precio_base_usd,
+         nivel_dificultad, min_pax, max_pax, incluye, no_incluye, que_llevar,
+         politica_cancelacion, activo, es_plantilla, clonado_de, creado_por)
+       SELECT $2, $3, descripcion, tipo, duracion_dias, precio_base_usd,
+              nivel_dificultad, min_pax, max_pax, incluye, no_incluye, que_llevar,
+              politica_cancelacion, TRUE, FALSE, id, $4
+       FROM cusi.servicios_turisticos WHERE id = $1
+       RETURNING id`,
+      [id, nuevoCodigo, nuevoNombre, userId]
+    );
+    const nuevo = rows[0].id;
+
+    await client.query(
+      `INSERT INTO cusi.itinerarios (
+         servicio_id, dia_numero, titulo, descripcion, altitud_max_msnm,
+         distancia_km, horas_caminata, desayuno, almuerzo, cena, box_lunch,
+         alojamiento, notas_operativas, orden)
+       SELECT $2, dia_numero, titulo, descripcion, altitud_max_msnm,
+              distancia_km, horas_caminata, desayuno, almuerzo, cena, box_lunch,
+              alojamiento, notas_operativas, orden
+       FROM cusi.itinerarios WHERE servicio_id = $1 ORDER BY dia_numero`,
+      [id, nuevo]
+    );
+
+    const { rows: ops } = await client.query(
+      'SELECT * FROM cusi.plantilla_operaciones WHERE servicio_id = $1 ORDER BY dia_numero, orden, id', [id]
+    );
+    for (const op of ops) {
+      const { rows: nop } = await client.query(
+        `INSERT INTO cusi.plantilla_operaciones
+           (servicio_id, tipo_servicio, proveedor_id, descripcion, cantidad, costo_unitario_usd, moneda, orden, dia_numero)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+        [nuevo, op.tipo_servicio, op.proveedor_id, op.descripcion, op.cantidad, op.costo_unitario_usd, op.moneda, op.orden, op.dia_numero]
+      );
+      await client.query(
+        `INSERT INTO cusi.plantilla_tareas_operacion
+           (plantilla_operacion_id, titulo, fecha, monto, moneda, persona_encargada, orden)
+         SELECT $2, titulo, fecha, monto, moneda, persona_encargada, orden
+         FROM cusi.plantilla_tareas_operacion WHERE plantilla_operacion_id = $1`,
+        [op.id, nop[0].id]
+      );
+    }
+
+    await client.query(
+      `INSERT INTO cusi.plantilla_servicios_adicionales (servicio_id, nombre, precio_usd, orden)
+       SELECT $2, nombre, precio_usd, orden FROM cusi.plantilla_servicios_adicionales WHERE servicio_id = $1`,
+      [id, nuevo]
+    );
+
+    await client.query(
+      `INSERT INTO cusi.logs_auditoria (tabla, operacion, registro_id, usuario_id, datos_despues)
+       VALUES ('servicios_turisticos', 'CLONE', $1, $2, $3)`,
+      [nuevo, userId, JSON.stringify({ clonado_de: id, nuevo_codigo: nuevoCodigo, nuevo_nombre: nuevoNombre })]
+    );
+    return nuevo;
+  });
   return getById(nuevoId);
 };
 
