@@ -26,7 +26,7 @@ const DEFAULTS = {
   web:          'www.cusitravel.com',
   responsable:  '',
   cargo:        'Sales Manager',
-  // Datos bancarios (para Invoice)
+  // Datos bancarios (referencia; ya no se imprimen en el invoice)
   banco:               'Interbank',
   cuenta_titular:      'Empresa Cusi Travel International',
   cuenta_ruc:          '',
@@ -40,6 +40,14 @@ export const getAgenciaData = () => {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? { ...DEFAULTS, ...JSON.parse(raw) } : DEFAULTS;
   } catch { return DEFAULTS; }
+};
+
+// Actualiza solo algunos campos de "Mi Agencia" (ej. desde el editor del invoice).
+export const saveAgenciaData = (patch) => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...getAgenciaData(), ...patch }));
+    return true;
+  } catch { return false; }
 };
 
 function Field({ icon: Icon, label, name, value, onChange, type = 'text', placeholder = '', required = false }) {
@@ -249,9 +257,9 @@ export default function AgenciaPage() {
           {/* Datos bancarios */}
           <div className="card p-5 md:p-7 space-y-3 md:space-y-4">
             <h2 className="font-semibold text-sm md:text-base flex items-center gap-2" style={{ color: 'var(--text)' }}>
-              <CreditCard size={15} style={{ color: 'var(--brand)' }} /> Datos bancarios (Invoice)
+              <CreditCard size={15} style={{ color: 'var(--brand)' }} /> Datos bancarios
             </h2>
-            <p className="text-xs" style={{ color: 'var(--text-2)' }}>Aparecen en la sección de pago del Invoice Excel.</p>
+            <p className="text-xs" style={{ color: 'var(--text-2)' }}>Solo de referencia: el invoice ya no imprime la sección "Payment Information".</p>
             <div className="grid grid-cols-2 gap-3">
               <Field icon={null} label="Banco" name="banco" value={form.banco} onChange={set} placeholder="Interbank" />
               <Field icon={null} label="Moneda" name="cuenta_moneda" value={form.cuenta_moneda} onChange={set} placeholder="USD" />

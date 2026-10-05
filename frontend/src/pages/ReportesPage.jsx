@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { BarChart3, Hash, DollarSign, Users, FileSpreadsheet, Search, Download, X, Plus, Trash2, FolderOpen, CreditCard, AlertTriangle, ClipboardCheck } from 'lucide-react';
+import { useState } from 'react';
+import { BarChart3, Hash, DollarSign, Users, FileSpreadsheet, Search, Download, FolderOpen, ClipboardCheck } from 'lucide-react';
 import FiltrosReporte from '../components/reportes/FiltrosReporte';
 import ChecklistGuiaSection from '../components/reportes/ChecklistGuiaSection';
 import Alert from '../components/ui/Alert';
@@ -8,8 +7,8 @@ import { PageLoader } from '../components/ui/Spinner';
 import { fmtMoneda, fmtFecha } from '../utils/formatters';
 import { reservasApi } from '../api/reservas.api';
 import { reportesApi } from '../api/reportes.api';
-import client from '../api/client';
 import { getAgenciaData } from './AgenciaPage';
+import InvoiceModal from '../components/reservas/InvoiceModal';
 
 const LABELS = {
   proveedor_nombre:'Proveedor', tipo_proveedor:'Tipo', reserva_codigo:'Código reserva',
@@ -89,277 +88,6 @@ function DataRow({ row, cols, index }) {
   );
 }
 
-/* ── helpers ── */
-function getBank() {
-  const ag = getAgenciaData();
-  return {
-    banco:          ag.banco          || '',
-    cuenta_titular: ag.cuenta_titular || '',
-    ruc:            ag.cuenta_ruc     || '',
-    cuenta_numero:  ag.cuenta_numero  || '',
-    cuenta_cci:     ag.cuenta_cci     || '',
-    moneda:         ag.cuenta_moneda  || 'USD',
-  };
-}
-
-/* ── Modal: formulario TO + items ── */
-function InvoiceModal({ reserva, onClose }) {
-  const [to, setTo] = useState({
-    empresa:   reserva.agencia_nombre || '',
-    ruc:       '',
-    direccion: '',
-    contacto:  '',
-  });
-  const [items, setItems] = useState([{
-    qty:         reserva.n_pasajeros || 1,
-    description: reserva.servicio_nombre || reserva.nombre_servicio_snap || '',
-    unit_price:  Number(reserva.precio_usd_por_pax || 0),
-  }]);
-  const [desc, setDesc]   = useState(false);
-  const [error, setError] = useState('');
-
-  // Pre-poblar con los servicios adicionales de la reserva (ej. renta de
-  // bastones) — antes solo se veía una línea con el precio base del paquete.
-  useEffect(() => {
-    reservasApi.getById(reserva.id).then(r => {
-      const extras = r.data?.servicios_adicionales || [];
-      if (!extras.length) return;
-      setItems(prev => [
-        ...prev,
-        ...extras.map(e => ({
-          qty: e.cantidad, description: e.nombre, unit_price: Number(e.precio_unitario_usd || 0),
-        })),
-      ]);
-    }).catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reserva.id]);
-
-  const fTo   = (k, v) => setTo(p => ({ ...p, [k]: v }));
-  const fItem = (i, k, v) => setItems(p => { const n = [...p]; n[i] = { ...n[i], [k]: v }; return n; });
-  const addItem    = () => setItems(p => [...p, { qty: 1, description: '', unit_price: 0 }]);
-  const removeItem = i  => setItems(p => p.filter((_, idx) => idx !== i));
-
-  const descargar = async () => {
-    setDesc(true); setError('');
-    try {
-      const token = localStorage.getItem('cusi_token');
-      const ag    = getAgenciaData();
-      const body  = {
-        agency: {
-          name:           ag.nombre             || 'Cusi Travel',
-          slogan:         ag.slogan             || '',
-          address:        ag.direccion          || '',
-          city:           `${ag.ciudad || 'Cusco'}, ${ag.pais || 'Peru'}`,
-          phone1:         ag.telefono           || '',
-          phone1_contact: ag.telefono_contacto  || '',
-          phone2:         ag.telefono2          || '',
-          phone2_contact: ag.telefono2_contacto || '',
-          phone3:         ag.telefono3          || '',
-          phone3_note:    ag.telefono3_nota     || '',
-          email:          ag.email              || '',
-          logo_b64:       ag.logo_b64           || '',
-        },
-        bank: getBank(),
-        to,
-        lineItems: items.map(it => ({
-          qty:        Number(it.qty || 1),
-          description: it.description,
-          unit_price:  Number(it.unit_price || 0),
-        })),
-      };
-      const resp = await fetch(`/api/reportes/invoice/${reserva.id}`, {
-        method:  'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body:    JSON.stringify(body),
-      });
-      if (!resp.ok) {
-        const json = await resp.json().catch(() => ({}));
-        throw new Error(json.error || `Error ${resp.status}`);
-      }
-      const blob = await resp.blob();
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
-      a.href = url; a.download = `Invoice-${reserva.codigo_reserva}.xlsx`;
-      document.body.appendChild(a); a.click();
-      document.body.removeChild(a); URL.revokeObjectURL(url);
-      onClose();
-    } catch (e) { setError(e?.message || 'Error al generar invoice'); }
-    finally { setDesc(false); }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.55)' }}>
-      <div className="w-full max-w-2xl rounded-2xl overflow-hidden max-h-[90vh] flex flex-col"
-        style={{ background: 'var(--card)', boxShadow: '0 25px 50px rgba(0,0,0,0.25)' }}>
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 flex-shrink-0"
-          style={{ borderBottom: '1px solid var(--border)', background: '#0C2350' }}>
-          <div>
-            <h3 className="font-bold text-white">Invoice — {reserva.codigo_reserva}</h3>
-            <p className="text-white/60 text-xs mt-0.5">{reserva.servicio_nombre || reserva.nombre_servicio_snap}</p>
-          </div>
-          <button onClick={onClose} className="text-white/60 hover:text-white transition-colors">
-            <X size={20} />
-          </button>
-        </div>
-
-        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-6">
-          {error && <Alert type="error" message={error} onClose={() => setError('')} />}
-
-          {/* TO */}
-          <div className="space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--text-3)' }}>
-              TO — Datos del destinatario
-            </h4>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2">
-                <label className="label">Empresa / Agencia</label>
-                <input className="input-field" value={to.empresa}
-                  onChange={e => fTo('empresa', e.target.value)} placeholder="Nombre de la empresa..." />
-              </div>
-              <div>
-                <label className="label">RUC / Tax ID</label>
-                <input className="input-field font-mono" value={to.ruc}
-                  onChange={e => fTo('ruc', e.target.value)} placeholder="20601234567" />
-              </div>
-              <div>
-                <label className="label">Contacto (persona)</label>
-                <input className="input-field" value={to.contacto}
-                  onChange={e => fTo('contacto', e.target.value)} placeholder="Nombre del contacto" />
-              </div>
-              <div className="col-span-2">
-                <label className="label">Dirección</label>
-                <input className="input-field" value={to.direccion}
-                  onChange={e => fTo('direccion', e.target.value)} placeholder="Dirección fiscal..." />
-              </div>
-            </div>
-          </div>
-
-          {/* Items */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--text-3)' }}>
-                Items / Servicios
-              </h4>
-              <button onClick={addItem}
-                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
-                style={{ background: 'var(--brand)', color: 'white' }}>
-                <Plus size={12} /> Agregar ítem
-              </button>
-            </div>
-            <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-              <div className="grid grid-cols-12 gap-2 px-3 py-2 text-xs font-bold uppercase tracking-wide"
-                style={{ background: 'var(--card-2)', color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }}>
-                <span className="col-span-1 text-center">Qty</span>
-                <span className="col-span-6">Descripción</span>
-                <span className="col-span-3 text-right">Precio unit.</span>
-                <span className="col-span-1 text-right">Total</span>
-                <span className="col-span-1"></span>
-              </div>
-              {items.map((item, i) => (
-                <div key={i} className="grid grid-cols-12 gap-2 items-center px-3 py-2"
-                  style={{ borderBottom: i < items.length-1 ? '1px solid var(--border)' : 'none' }}>
-                  <input type="number" min="1" className="input-field col-span-1 text-center px-1 text-xs"
-                    value={item.qty} onChange={e => fItem(i, 'qty', e.target.value)} />
-                  <input className="input-field col-span-6 text-xs" value={item.description}
-                    onChange={e => fItem(i, 'description', e.target.value)} placeholder="Descripción..." />
-                  <input type="number" min="0" step="0.01" className="input-field col-span-3 text-right font-mono text-xs"
-                    value={item.unit_price} onChange={e => fItem(i, 'unit_price', e.target.value)} />
-                  <span className="col-span-1 text-right text-xs font-mono font-semibold"
-                    style={{ color: 'var(--text-2)' }}>
-                    ${(Number(item.qty||1)*Number(item.unit_price||0)).toFixed(2)}
-                  </span>
-                  <div className="col-span-1 flex justify-end">
-                    {items.length > 1 && (
-                      <button onClick={() => removeItem(i)} className="p-1 rounded-lg hover:bg-red-50 transition-colors">
-                        <Trash2 size={13} className="text-red-400" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-              <div className="flex justify-end gap-6 px-4 py-2 text-xs font-bold"
-                style={{ background: 'var(--card-2)', borderTop: '1px solid var(--border)', color: 'var(--text)' }}>
-                <span>Total</span>
-                <span className="font-mono">
-                  ${items.reduce((s, it) => s + Number(it.qty||1)*Number(it.unit_price||0), 0).toFixed(2)}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="flex justify-end gap-2 px-6 py-4 flex-shrink-0"
-          style={{ borderTop: '1px solid var(--border)', background: 'var(--card-2)' }}>
-          <button onClick={onClose} className="btn-secondary">Cancelar</button>
-          <button onClick={descargar} disabled={desc}
-            className="btn-primary flex items-center gap-2">
-            {desc ? <span className="animate-spin inline-block">⟳</span> : <Download size={14} />}
-            Descargar Invoice
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ── BankPanel ───────────────────────────────────────────────── */
-function BankPanel() {
-  const navigate = useNavigate();
-  const bank = getBank();
-  const hasData = !!(bank.banco || bank.cuenta_numero);
-
-  return (
-    <div className="card p-5 space-y-3" style={{ border: '1px solid var(--border)' }}>
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <CreditCard size={14} style={{ color: 'var(--brand)' }} />
-          <span className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--text-3)' }}>
-            Datos bancarios del Invoice
-          </span>
-        </div>
-        <button
-          onClick={() => navigate('/mi-agencia')}
-          className="text-xs font-semibold hover:underline flex-shrink-0"
-          style={{ color: 'var(--brand)' }}>
-          Editar en Mi Agencia →
-        </button>
-      </div>
-
-      {!hasData ? (
-        <div className="flex items-center gap-2 rounded-xl p-3"
-          style={{ background: '#fffbeb', border: '1px solid #fde68a' }}>
-          <AlertTriangle size={14} style={{ color: '#d97706' }} className="flex-shrink-0" />
-          <p className="text-xs" style={{ color: '#92400e' }}>
-            No hay datos bancarios configurados. El invoice se generará sin sección de pago.{' '}
-            <button onClick={() => navigate('/mi-agencia')} className="underline font-semibold">
-              Configurar ahora
-            </button>
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-1.5">
-          {[
-            ['Banco',    bank.banco],
-            ['Titular',  bank.cuenta_titular],
-            ['N° cuenta',bank.cuenta_numero],
-            ['CCI',      bank.cuenta_cci],
-            ['RUC',      bank.ruc],
-            ['Moneda',   bank.moneda],
-          ].filter(([, v]) => v).map(([label, value]) => (
-            <div key={label}>
-              <span className="text-xs" style={{ color: 'var(--text-3)' }}>{label}: </span>
-              <span className="text-xs font-semibold font-mono" style={{ color: 'var(--text)' }}>{value}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 /* ── Invoice Section ─────────────────────────────────────────── */
 function InvoiceSection() {
   const [busqueda, setBusqueda] = useState('');
@@ -381,7 +109,7 @@ function InvoiceSection() {
 
   return (
     <div className="space-y-5">
-      {modal && <InvoiceModal reserva={modal} onClose={() => setModal(null)} />}
+      <InvoiceModal open={!!modal} reserva={modal} onClose={() => setModal(null)} />
       {error && <Alert type="error" message={error} onClose={() => setError('')} />}
 
       {/* Hero */}
@@ -394,13 +122,11 @@ function InvoiceSection() {
         <div>
           <h2 className="font-bold text-lg">Generar Invoice Excel</h2>
           <p className="text-white/70 text-sm mt-0.5">
-            Busca una reserva, completa los datos del destinatario y descarga el .xlsx.
+            Busca una reserva, edita los datos del invoice viendo la vista previa y descárgalo en .xlsx. (También desde el botón "Invoice" de cada reserva.)
           </p>
         </div>
       </div>
 
-      {/* Panel bancario */}
-      <BankPanel />
 
       {/* Buscador */}
       <div className="card p-5 space-y-3">

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, CheckCircle2, Clock, AlertTriangle, User, Search, X, ChevronDown, ClipboardList, Circle } from "lucide-react";
 import { tareasApi } from "../api/tareas.api";
@@ -246,7 +246,9 @@ function TareaOperacionRow({ t, onToggle, onEditar, navigate }) {
           {t.tipo_servicio && <span>{t.tipo_servicio}</span>}
           {t.proveedor_nombre && <span>{t.proveedor_nombre}</span>}
           {t.persona_encargada && <span className="flex items-center gap-1"><User size={10} />{t.persona_encargada}</span>}
-          {t.fecha && <span className="flex items-center gap-1"><Clock size={10} />{fmtFecha(t.fecha)}</span>}
+          {t.fecha
+            ? <span className="flex items-center gap-1"><Clock size={10} />{fmtFecha(t.fecha)}</span>
+            : t.operacion_fecha && <span className="flex items-center gap-1" title="Fecha de la operación"><Clock size={10} />Op. {fmtFecha(t.operacion_fecha)}</span>}
         </div>
       </div>
       {t.monto != null && (
@@ -319,19 +321,41 @@ function TareaOperacionForm({ inicial, onSave, onCancel }) {
   );
 }
 
+const FILTROS_OP_VACIOS = { busqueda: '', desde: '', hasta: '' };
+
 function TareasOperacionSection() {
   const [tareas, setTareas] = useState(null);
   const [error, setError]   = useState('');
   const [editModal, setEditModal] = useState(false);
   const [editando, setEditando]   = useState(null);
+  const [filtros, setFiltros]     = useState(FILTROS_OP_VACIOS);
+  const [busquedaDebounced, setBusquedaDebounced] = useState('');
   const navigate = useNavigate();
+  const loadSeq = useRef(0);
+
+  // La búsqueda espera a que se deje de escribir para no pedir en cada tecla.
+  useEffect(() => {
+    const t = setTimeout(() => setBusquedaDebounced(filtros.busqueda.trim()), 350);
+    return () => clearTimeout(t);
+  }, [filtros.busqueda]);
 
   const load = useCallback(async () => {
-    try { const r = await proveedoresApi.getAllTareasOperacion(); setTareas(r.data || []); }
-    catch { setError('No se pudieron cargar las tareas de operaciones'); }
-  }, []);
+    const seq = ++loadSeq.current;
+    try {
+      const params = {};
+      if (busquedaDebounced) params.busqueda = busquedaDebounced;
+      if (filtros.desde)     params.desde = filtros.desde;
+      if (filtros.hasta)     params.hasta = filtros.hasta;
+      const r = await proveedoresApi.getAllTareasOperacion(params);
+      if (seq === loadSeq.current) setTareas(r.data || []);
+    }
+    catch { if (seq === loadSeq.current) setError('No se pudieron cargar las tareas de operaciones'); }
+  }, [busquedaDebounced, filtros.desde, filtros.hasta]);
 
   useEffect(() => { load(); }, [load]);
+
+  const setFiltro = (k, v) => setFiltros(p => ({ ...p, [k]: v }));
+  const hayFiltros = filtros.busqueda || filtros.desde || filtros.hasta;
 
   const toggle = async (t) => {
     setTareas(prev => prev.map(x => x.id === t.id ? { ...x, completada: !t.completada } : x));
@@ -360,10 +384,37 @@ function TareasOperacionSection() {
       <p className="text-xs" style={{ color: 'var(--text-3)' }}>
         Checklist de tareas de cada operación (hoteles, guías, transportes...) de todas las reservas.
       </p>
+      <div className="flex flex-wrap items-end gap-3 rounded-2xl p-3"
+        style={{ background: 'var(--card)', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border)' }}>
+        <div className="relative flex-1 min-w-[200px]">
+          <label className="label text-xs">Buscar</label>
+          <Search size={14} className="absolute left-3 bottom-3 pointer-events-none" style={{ color: 'var(--text-3)' }} />
+          <input className="input-field pl-9" placeholder="Tarea, código de reserva, proveedor, encargado..."
+            value={filtros.busqueda} onChange={e => setFiltro('busqueda', e.target.value)} />
+        </div>
+        <div>
+          <label className="label text-xs">Desde</label>
+          <input type="date" className="input-field" value={filtros.desde} onChange={e => setFiltro('desde', e.target.value)} />
+        </div>
+        <div>
+          <label className="label text-xs">Hasta</label>
+          <input type="date" className="input-field" value={filtros.hasta} onChange={e => setFiltro('hasta', e.target.value)} />
+        </div>
+        {hayFiltros && (
+          <button onClick={() => setFiltros(FILTROS_OP_VACIOS)} className="btn-secondary flex items-center gap-1 text-sm">
+            <X size={13} /> Limpiar
+          </button>
+        )}
+      </div>
+      {(filtros.desde || filtros.hasta) && (
+        <p className="text-xs -mt-3" style={{ color: 'var(--text-3)' }}>
+          Se filtra por la fecha de la tarea (o la de su operación, si la tarea no tiene fecha).
+        </p>
+      )}
       {tareas.length === 0 ? (
         <div className="text-center py-16" style={{ color: 'var(--text-2)' }}>
           <ClipboardList size={40} className="mx-auto mb-3" style={{ color: 'var(--text-3)' }} />
-          <p>No hay tareas de operaciones registradas</p>
+          <p>{hayFiltros ? 'No hay tareas que coincidan con los filtros' : 'No hay tareas de operaciones registradas'}</p>
         </div>
       ) : (
         <>

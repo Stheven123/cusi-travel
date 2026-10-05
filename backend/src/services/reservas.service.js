@@ -19,9 +19,11 @@ const CHECKLIST_GUIA_DEFAULT = [
 
 // Copia las operaciones + checklist definidos en la plantilla del paquete
 // hacia la nueva reserva. Se ejecuta solo al CREAR (no en cada edición).
+// Cada operación cae en la fecha de su día del paquete:
+// fecha_inicio de la reserva + (dia_numero - 1).
 const instanciarPlantillaOperaciones = async (client, servicioId, reservaId, fechaInicio) => {
   const { rows: plantillas } = await client.query(
-    'SELECT * FROM cusi.plantilla_operaciones WHERE servicio_id = $1 ORDER BY orden, id',
+    'SELECT * FROM cusi.plantilla_operaciones WHERE servicio_id = $1 ORDER BY dia_numero, orden, id',
     [servicioId]
   );
   for (const pl of plantillas) {
@@ -29,12 +31,13 @@ const instanciarPlantillaOperaciones = async (client, servicioId, reservaId, fec
       `INSERT INTO cusi.detalles_operacion_proveedor
          (reserva_id, proveedor_id, tipo_servicio, descripcion, fecha_inicio,
           cantidad, costo_unitario_usd, moneda, estado)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'PENDIENTE')
+       VALUES ($1,$2,$3,$4,$5::date + ($9::int - 1),$6,$7,$8,'PENDIENTE')
        RETURNING id`,
       [
         reservaId, pl.proveedor_id || null, pl.tipo_servicio, pl.descripcion || null,
         fechaInicio || fechaLimaISO(new Date()),
         pl.cantidad, pl.costo_unitario_usd, pl.moneda,
+        pl.dia_numero || 1,
       ]
     );
     const detalleId = det[0].id;
@@ -122,6 +125,29 @@ const syncServiciosAdicionales = async (client, reservaId, extras) => {
       `INSERT INTO cusi.reserva_servicios_adicionales (reserva_id, nombre, cantidad, precio_unitario_usd)
        VALUES ($1,$2,$3,$4)`,
       [reservaId, e.nombre, Number(e.cantidad) || 1, Number(e.precio_unitario_usd) || 0]
+    );
+  }
+};
+
+// Reemplaza los pagos de una reserva (borrar + reinsertar). Si quedan pagos,
+// adelanto_usd pasa a ser la suma de sus montos (una sola fuente de verdad).
+const syncPagos = async (client, reservaId, pagos) => {
+  if (!Array.isArray(pagos)) return;
+  await client.query('DELETE FROM cusi.reserva_pagos WHERE reserva_id = $1', [reservaId]);
+  let suma = 0;
+  for (const p of pagos) {
+    const monto = Number(p.monto) || 0;
+    if (!p.fecha || monto <= 0) continue;
+    await client.query(
+      'INSERT INTO cusi.reserva_pagos (reserva_id, fecha, monto, nota) VALUES ($1,$2,$3,$4)',
+      [reservaId, p.fecha, monto, p.nota || null]
+    );
+    suma += monto;
+  }
+  if (suma > 0) {
+    await client.query(
+      'UPDATE cusi.reservas SET adelanto_usd = $2 WHERE id = $1',
+      [reservaId, Math.round(suma * 100) / 100]
     );
   }
 };
@@ -238,19 +264,78 @@ const getById = async (id) => {
   );
   const { rows: detalles } = await query(
     `SELECT d.*, p.nombre AS proveedor_nombre, p.tipo AS proveedor_tipo,
-            eu.nombre || ' ' || eu.apellido AS estado_actualizado_por_nombre
+            eu.nombre || ' ' || eu.apellido AS estado_actualizado_por_nombre,
+            (SELECT COUNT(*)::int FROM cusi.tareas_operacion t WHERE t.detalle_id = d.id) AS tareas_total,
+            (SELECT COUNT(*)::int FROM cusi.tareas_operacion t WHERE t.detalle_id = d.id AND t.completada) AS tareas_completadas
      FROM cusi.detalles_operacion_proveedor d
      LEFT JOIN cusi.proveedores p  ON p.id  = d.proveedor_id
      LEFT JOIN cusi.usuarios    eu ON eu.id = d.estado_actualizado_por_id
-     WHERE d.reserva_id = $1 ORDER BY d.fecha_inicio`,
+     WHERE d.reserva_id = $1 ORDER BY d.fecha_inicio, d.id`,
     [id]
   );
   const { rows: serviciosAdicionales } = await query(
     `SELECT * FROM cusi.reserva_servicios_adicionales WHERE reserva_id = $1 ORDER BY id`,
     [id]
   );
+  const { rows: pagos } = await query(
+    `SELECT id, to_char(fecha, 'YYYY-MM-DD') AS fecha, monto, nota
+     FROM cusi.reserva_pagos WHERE reserva_id = $1 ORDER BY fecha, id`,
+    [id]
+  );
 
-  return { ...reserva, pasajeros, tareas, detalles, servicios_adicionales: serviciosAdicionales };
+  return { ...reserva, pasajeros, tareas, detalles, servicios_adicionales: serviciosAdicionales, pagos };
+};
+
+// ── Itinerario de la reserva ─────────────────────────────────
+// Por defecto la reserva usa el itinerario de su paquete. Si se personaliza,
+// se guarda una copia completa en reserva_itinerarios, que tiene prioridad.
+const getItinerario = async (reservaId) => {
+  const { rows: res } = await query('SELECT id, servicio_id FROM cusi.reservas WHERE id = $1', [reservaId]);
+  if (!res.length) throw new AppError('Reserva no encontrada', 404, 'NOT_FOUND');
+
+  const { rows: propios } = await query(
+    'SELECT * FROM cusi.reserva_itinerarios WHERE reserva_id = $1 ORDER BY dia_numero',
+    [reservaId]
+  );
+  if (propios.length) return { personalizado: true, dias: propios };
+
+  if (!res[0].servicio_id) return { personalizado: false, dias: [] };
+  const { rows: delPaquete } = await query(
+    'SELECT * FROM cusi.itinerarios WHERE servicio_id = $1 ORDER BY dia_numero',
+    [res[0].servicio_id]
+  );
+  return { personalizado: false, dias: delPaquete };
+};
+
+const saveItinerario = async (reservaId, dias) => {
+  await withTransaction(async (client) => {
+    const { rows } = await client.query('SELECT id FROM cusi.reservas WHERE id = $1', [reservaId]);
+    if (!rows.length) throw new AppError('Reserva no encontrada', 404, 'NOT_FOUND');
+    await client.query('DELETE FROM cusi.reserva_itinerarios WHERE reserva_id = $1', [reservaId]);
+    for (let i = 0; i < dias.length; i++) {
+      const d = dias[i];
+      await client.query(
+        `INSERT INTO cusi.reserva_itinerarios
+           (reserva_id, dia_numero, titulo, descripcion, altitud_max_msnm,
+            distancia_km, horas_caminata, desayuno, almuerzo, cena, box_lunch,
+            alojamiento, notas_operativas, orden)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+        [
+          reservaId, i + 1, d.titulo, d.descripcion || null,
+          d.altitud_max_msnm ?? null, d.distancia_km ?? null, d.horas_caminata ?? null,
+          !!d.desayuno, !!d.almuerzo, !!d.cena, !!d.box_lunch,
+          d.alojamiento || null, d.notas_operativas || null, i + 1,
+        ]
+      );
+    }
+  });
+  return getItinerario(reservaId);
+};
+
+// Vuelve a usar el itinerario del paquete (borra la versión personalizada).
+const resetItinerario = async (reservaId) => {
+  await query('DELETE FROM cusi.reserva_itinerarios WHERE reserva_id = $1', [reservaId]);
+  return getItinerario(reservaId);
 };
 
 const create = async (data, userId) => {
@@ -326,6 +411,7 @@ const create = async (data, userId) => {
       await syncGuiaOperacion(client, newId, data.proveedor_guia_id);
     }
     await syncServiciosAdicionales(client, newId, data.servicios_adicionales);
+    await syncPagos(client, newId, data.pagos);
 
     await client.query(
       `INSERT INTO cusi.logs_auditoria (tabla, operacion, registro_id, usuario_id, datos_despues)
@@ -338,9 +424,9 @@ const create = async (data, userId) => {
 };
 
 const update = async (id, data, userId) => {
-  const { servicios_adicionales, proveedor_guia_id, ...camposReserva } = data;
+  const { servicios_adicionales, proveedor_guia_id, pagos, ...camposReserva } = data;
   const campos = Object.keys(camposReserva);
-  if (!campos.length && servicios_adicionales === undefined && proveedor_guia_id === undefined) {
+  if (!campos.length && servicios_adicionales === undefined && proveedor_guia_id === undefined && pagos === undefined) {
     throw new AppError('Sin datos para actualizar', 400, 'EMPTY_UPDATE');
   }
 
@@ -369,6 +455,10 @@ const update = async (id, data, userId) => {
     }
     if (proveedor_guia_id !== undefined) {
       await syncGuiaOperacion(client, id, proveedor_guia_id);
+    }
+    if (pagos !== undefined) {
+      await syncPagos(client, id, pagos);
+      updated = undefined; // adelanto_usd pudo cambiar: se relee abajo
     }
 
     if (!updated) {
@@ -406,4 +496,7 @@ const remove = async (id, userId) => {
   );
 };
 
-module.exports = { getAll, getCalendario, getById, create, update, cambiarEstado, remove };
+module.exports = {
+  getAll, getCalendario, getById, create, update, cambiarEstado, remove,
+  getItinerario, saveItinerario, resetItinerario,
+};

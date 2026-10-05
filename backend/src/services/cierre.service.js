@@ -348,4 +348,35 @@ async function generarCierreExcelPorReserva(reservaId, agencia = {}) {
   return { workbook, filename: `Cierre-${codigo}.xlsx` };
 }
 
-module.exports = { generarCierreExcel, generarCierreExcelPorReserva };
+// Vista previa del cierre de file de una reserva: las mismas filas y totales
+// por moneda que van al Excel, en JSON para mostrarlos antes de descargar.
+async function previewCierrePorReserva(reservaId) {
+  const ops = await getOperacionesPorReserva(reservaId);
+  const totalesPorMoneda = {};
+  ops.forEach(r => {
+    const m = r.moneda || 'USD';
+    totalesPorMoneda[m] = (totalesPorMoneda[m] || 0) + Number(r.monto || 0);
+  });
+  return {
+    codigo: ops[0]?.codigo_reserva || null,
+    filas: ops.map((op, i) => ({
+      n:              i + 1,
+      codigo_reserva: op.codigo_reserva || '',
+      fecha_servicio: fmtDate(op.fecha_servicio),
+      tipo_servicio:  op.tipo_servicio || '',
+      detalle_gasto:  op.detalle_gasto || '',
+      proveedor:      op.proveedor_nombre || '',
+      ruc:            op.ruc || '',
+      cantidad:       Number(op.cantidad || 1),
+      moneda:         op.moneda || 'USD',
+      monto_unitario: Number(op.monto_unitario || 0),
+      monto:          Number(op.monto || 0),
+      fecha_emision:  fmtDate(op.fecha_emision),
+      operador:       op.operador || '',
+      estado:         op.estado || '',
+    })),
+    totalesPorMoneda,
+  };
+}
+
+module.exports = { generarCierreExcel, generarCierreExcelPorReserva, previewCierrePorReserva };

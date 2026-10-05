@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   CalendarDays, Clock, MapPin, Users, Globe, TrendingUp,
-  Building2, Lock, DollarSign, Package,
+  Building2, Lock, DollarSign, Package, Plus, Trash2,
 } from 'lucide-react';
 import { ESTADOS_OPERACION, IDIOMAS } from '../../utils/constants';
 import { serviciosApi } from '../../api/servicios.api';
@@ -73,6 +73,11 @@ export default function ReservaForm({ inicial, onSave, onCancel }) {
       nombre: e.nombre, cantidad: e.cantidad, precio_unitario_usd: e.precio_unitario_usd,
     }))
   );
+  // Pagos con fecha: el cliente puede pagar en varias fechas. Si hay pagos,
+  // el adelanto es la suma de sus montos (se calcula solo).
+  const [pagos, setPagos] = useState(
+    (inicial?.pagos || []).map(p => ({ fecha: p.fecha?.slice(0, 10) || '', monto: p.monto ?? '', nota: p.nota || '' }))
+  );
   const [modoOtraAgencia, setModoOtraAgencia] = useState(false);
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState('');
@@ -127,9 +132,22 @@ export default function ReservaForm({ inicial, onSave, onCancel }) {
 
   const catalogoDelPaquete = servicios.find(s => String(s.id) === String(form.servicio_id))?.catalogo_adicionales || [];
 
+  const pagosValidos = pagos.filter(p => p.fecha && Number(p.monto) > 0);
+  const sumaPagos    = Math.round(pagosValidos.reduce((s, p) => s + Number(p.monto), 0) * 100) / 100;
+  const usaPagos     = pagosValidos.length > 0;
+  const setPago      = (i, k, v) => setPagos(p => p.map((x, idx) => idx === i ? { ...x, [k]: v } : x));
+  const addPago      = () => setPagos(p => [...p, { fecha: new Date().toLocaleDateString('en-CA'), monto: '', nota: '' }]);
+  const removePago   = (i) => setPagos(p => p.filter((_, idx) => idx !== i));
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setSaving(true); setError('');
+    setError('');
+    const incompleto = pagos.find(p => (p.fecha || p.monto !== '') && !(p.fecha && Number(p.monto) > 0));
+    if (incompleto) return setError('Cada pago necesita una fecha y un monto mayor a 0');
+    if (usaPagos && sumaPagos > Number(form.total_usd)) {
+      return setError(`La suma de los pagos ($${sumaPagos.toFixed(2)}) supera el total de la reserva`);
+    }
+    setSaving(true);
     try {
       const payload = { ...form,
         servicio_id:        form.servicio_id        ? Number(form.servicio_id) : undefined,
@@ -138,7 +156,8 @@ export default function ReservaForm({ inicial, onSave, onCancel }) {
         n_pasajeros:        Number(form.n_pasajeros) || 1,
         precio_usd_por_pax: Number(form.precio_usd_por_pax),
         total_usd:          Number(form.total_usd),
-        adelanto_usd:       Number(form.adelanto_usd),
+        adelanto_usd:       usaPagos ? sumaPagos : Number(form.adelanto_usd),
+        pagos:              pagosValidos.map(p => ({ fecha: p.fecha, monto: Number(p.monto), nota: p.nota || null })),
         descuento_usd:      Number(form.descuento_usd),
         fecha_inicio:       form.fecha_inicio || undefined,
         fecha_fin:          form.fecha_fin    || undefined,
@@ -160,7 +179,8 @@ export default function ReservaForm({ inicial, onSave, onCancel }) {
     } finally { setSaving(false); }
   };
 
-  const saldo = Number(form.total_usd) - Number(form.adelanto_usd) - Number(form.descuento_usd);
+  const adelantoEfectivo = usaPagos ? sumaPagos : Number(form.adelanto_usd);
+  const saldo = Number(form.total_usd) - adelantoEfectivo - Number(form.descuento_usd);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -286,14 +306,55 @@ export default function ReservaForm({ inicial, onSave, onCancel }) {
             <input type="number" min="0" step="0.01" value={form.total_usd}
               onChange={e => set('total_usd', e.target.value)} className="input-field" />
           </Field>
-          <Field label="Adelanto USD">
-            <input type="number" min="0" step="0.01" value={form.adelanto_usd}
+          <Field label={usaPagos ? 'Pagado USD (suma de pagos)' : 'Adelanto USD'}>
+            <input type="number" min="0" step="0.01"
+              value={usaPagos ? sumaPagos.toFixed(2) : form.adelanto_usd}
+              disabled={usaPagos}
+              title={usaPagos ? 'Se calcula con los pagos registrados abajo' : undefined}
               onChange={e => set('adelanto_usd', e.target.value)} className="input-field" />
           </Field>
           <Field label="Descuento USD">
             <input type="number" min="0" step="0.01" value={form.descuento_usd}
               onChange={e => set('descuento_usd', e.target.value)} className="input-field" />
           </Field>
+        </div>
+
+        <div className="pt-1 space-y-2" style={{ borderTop: '1px dashed var(--border)' }}>
+          <div className="flex items-center justify-between">
+            <p className="label mb-0">Pagos recibidos</p>
+            <button type="button" onClick={addPago}
+              className="text-xs font-semibold flex items-center gap-1 cursor-pointer" style={{ color: 'var(--brand)' }}>
+              <Plus size={13} /> Agregar pago
+            </button>
+          </div>
+          {pagos.length === 0 ? (
+            <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+              Registra cada pago con su fecha (el cliente puede pagar en varias fechas). Las fechas salen en el invoice.
+            </p>
+          ) : (
+            <div className="space-y-1.5">
+              {pagos.map((p, i) => (
+                <div key={i} className="flex flex-wrap items-center gap-2">
+                  <input type="date" className="input-field text-sm" style={{ width: '10rem' }}
+                    value={p.fecha} onChange={e => setPago(i, 'fecha', e.target.value)} />
+                  <div className="relative" style={{ width: '8.5rem' }}>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm pointer-events-none" style={{ color: 'var(--text-3)' }}>$</span>
+                    <input type="number" min="0" step="0.01" className="input-field text-sm pl-7" placeholder="0.00"
+                      value={p.monto} onChange={e => setPago(i, 'monto', e.target.value)} />
+                  </div>
+                  <input className="input-field text-sm flex-1 min-w-[140px]" placeholder="Nota (transferencia, efectivo...)"
+                    maxLength={200} value={p.nota} onChange={e => setPago(i, 'nota', e.target.value)} />
+                  <button type="button" onClick={() => removePago(i)} className="p-1.5 cursor-pointer" title="Quitar pago"
+                    style={{ color: '#ef4444' }}>
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+              <p className="text-xs text-right font-semibold" style={{ color: 'var(--text-2)' }}>
+                Total pagado: ${sumaPagos.toFixed(2)}
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="pt-1" style={{ borderTop: '1px dashed var(--border)' }}>

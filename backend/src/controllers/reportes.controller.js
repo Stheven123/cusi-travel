@@ -60,6 +60,39 @@ const proximas = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+// Datos editables del invoice que manda el frontend (emisor, destinatario,
+// número/fecha e ítems). La sección bancaria "Payment Information" ya no se usa.
+const invoiceOverrides = (body = {}) => {
+  const { agency = {}, to = {}, lineItems, invoice_number, invoice_date } = body || {};
+  return {
+    agency, to, lineItems,
+    invoice_number: typeof invoice_number === 'string' && invoice_number.trim() ? invoice_number.trim() : undefined,
+    invoice_date:   /^\d{4}-\d{2}-\d{2}$/.test(invoice_date || '') ? invoice_date : undefined,
+  };
+};
+
+const previewInvoice = async (req, res, next) => {
+  try {
+    const reservaId = Number(req.params.reservaId);
+    if (!Number.isInteger(reservaId) || reservaId < 1) {
+      return res.status(400).json({ ok: false, error: 'reservaId invalido' });
+    }
+    const data = await invoiceService.previewInvoice(reservaId, invoiceOverrides(req.body));
+    res.json({ ok: true, data });
+  } catch (err) { next(err); }
+};
+
+const previewCierreReserva = async (req, res, next) => {
+  try {
+    const reservaId = Number(req.params.reservaId);
+    if (!Number.isInteger(reservaId) || reservaId < 1) {
+      return res.status(400).json({ ok: false, error: 'reservaId invalido' });
+    }
+    const data = await cierreService.previewCierrePorReserva(reservaId);
+    res.json({ ok: true, data });
+  } catch (err) { next(err); }
+};
+
 const generarInvoice = async (req, res, next) => {
   try {
     const reservaId = Number(req.params.reservaId);
@@ -67,10 +100,7 @@ const generarInvoice = async (req, res, next) => {
       return res.status(400).json({ ok: false, error: 'reservaId invalido' });
     }
 
-    const { agency = {}, bank = {}, to = {}, lineItems } = req.body || {};
-    const overrides = { agency, bank, to, lineItems };
-
-    const { workbook, codigo } = await invoiceService.generarInvoiceExcel(reservaId, overrides);
+    const { workbook, codigo } = await invoiceService.generarInvoiceExcel(reservaId, invoiceOverrides(req.body));
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="Invoice-${codigo}.xlsx"`);
@@ -112,4 +142,7 @@ const generarCierreReserva = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-module.exports = { getKPIs, reporteProveedores, reporteProveedoresExcel, resumenMensual, proximas, generarInvoice, generarCierre, generarCierreReserva };
+module.exports = {
+  getKPIs, reporteProveedores, reporteProveedoresExcel, resumenMensual, proximas,
+  generarInvoice, previewInvoice, generarCierre, generarCierreReserva, previewCierreReserva,
+};

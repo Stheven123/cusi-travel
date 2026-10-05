@@ -82,7 +82,7 @@ function DetalleForm({ inicial, proveedores, onSave, onCancel }) {
     // Los campos opcionales se envían como undefined (no null): el esquema
     // Zod del backend usa .optional() y rechazaría valores null.
     onSave({
-      proveedor_id:       f.proveedor_id ? Number(f.proveedor_id) : undefined,
+      proveedor_id:       f.proveedor_id ? Number(f.proveedor_id) : null,
       tipo_servicio:      f.tipo_servicio,
       descripcion:        f.descripcion || undefined,
       fecha_inicio:       f.fecha_inicio || undefined,
@@ -113,10 +113,10 @@ function DetalleForm({ inicial, proveedores, onSave, onCancel }) {
         </select>
       </div>
       <div>
-        <label className="label">Proveedor *</label>
-        <select required className="input-field" value={f.proveedor_id}
+        <label className="label">Proveedor</label>
+        <select className="input-field" value={f.proveedor_id ?? ''}
           onChange={e => set('proveedor_id', e.target.value)}>
-          <option value="">— Seleccionar —</option>
+          <option value="">— Sin asignar —</option>
           {proveedoresFiltrados.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
         </select>
       </div>
@@ -211,7 +211,7 @@ function OperacionRow({ d, onEdit, onDelete, navigate }) {
         {/* L1: proveedor + tipo + estado */}
         <div className="flex items-center gap-1.5 flex-wrap min-w-0">
           <span className="font-semibold text-sm md:text-base truncate" style={{ color: 'var(--text)', maxWidth: '45%' }}>
-            {d.proveedor_nombre}
+            {d.proveedor_nombre || <span style={{ color: '#f59e0b' }}>Sin asignar</span>}
           </span>
           <span className="text-xs md:text-sm px-1.5 md:px-2.5 py-0.5 rounded-full font-medium flex-shrink-0"
             style={{ background: `${tc}20`, color: tc }}>

@@ -8,7 +8,7 @@ import { PageLoader } from '../components/ui/Spinner';
 import Alert from '../components/ui/Alert';
 import {
   getWeekStart, addDays, reservaOverlapsDay, isToday,
-  getMonthDays, fmtFechaCorta, fmtFecha, fmtMoneda,
+  getMonthDays, fmtFechaCorta, fmtFecha, fmtMoneda, localDateFromDateOnly,
 } from '../utils/formatters';
 import { DIAS_SEMANA, MESES } from '../utils/constants';
 
@@ -114,16 +114,33 @@ function ReservaModal({ reserva, pos, onClose }) {
 }
 
 /* ── Reservation block ─────────────────────────────────────────── */
-function ReservaBlock({ r, onClick }) {
+// Día del viaje (1, 2, 3...) que corresponde a `day` dentro del rango de la reserva.
+const diaDeReserva = (r, day) => {
+  const inicio = localDateFromDateOnly(r.fecha_inicio);
+  const fin    = localDateFromDateOnly(r.fecha_fin);
+  const d      = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+  return {
+    dia:   Math.round((d - inicio) / 86400000) + 1,
+    total: Math.round((fin - inicio) / 86400000) + 1,
+  };
+};
+
+function ReservaBlock({ r, day, onClick }) {
   const s = ESTADO_STYLE[r.estado_operacion] || DEFAULT_STYLE;
+  const { dia, total } = day ? diaDeReserva(r, day) : { dia: null, total: null };
   return (
     <button
       onClick={onClick}
       className="w-full text-left text-xs px-2 py-1 rounded-lg mb-0.5 truncate font-semibold hover:opacity-80 active:opacity-50 transition-opacity cursor-pointer flex items-center gap-1.5"
       style={{ background: s.bg, color: s.color }}
-      title={`📋 ${r.codigo_reserva} — ${r.servicio_nombre || r.nombre_servicio_snap} — ${r.n_pasajeros} pax`}
+      title={`📋 ${r.codigo_reserva} — ${r.servicio_nombre || r.nombre_servicio_snap} — ${r.n_pasajeros} pax${dia ? ` — Día ${dia} de ${total}` : ''}`}
     >
       <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: s.dot }} />
+      {dia != null && (
+        <span className="flex-shrink-0 px-1 rounded font-black" style={{ background: s.dot, color: 'white', fontSize: '0.65rem', lineHeight: '1rem' }}>
+          Día {dia}
+        </span>
+      )}
       <span className="truncate">{r.codigo_reserva}</span>
     </button>
   );
@@ -428,7 +445,7 @@ export default function CalendarioPage() {
                         <BriefingBlock key={`b-${b.id}`} b={b} onClick={(e) => handleBriefingClick(b, e)} />
                       ))}
                       {dayReservas.map(r => (
-                        <ReservaBlock key={r.id} r={r}
+                        <ReservaBlock key={r.id} r={r} day={day}
                           onClick={(e) => handleBlockClick(r, e)} />
                       ))}
                     </div>
@@ -465,7 +482,7 @@ export default function CalendarioPage() {
                             <BriefingBlock key={`b-${b.id}`} b={b} onClick={(e) => handleBriefingClick(b, e)} />
                           ))}
                           {dayReservas.map(r => (
-                            <ReservaBlock key={r.id} r={r} onClick={(e) => handleBlockClick(r, e)} />
+                            <ReservaBlock key={r.id} r={r} day={day} onClick={(e) => handleBlockClick(r, e)} />
                           ))}
                           {dayReservas.length === 0 && dayBriefings.length === 0 && (
                             <p className="text-xs text-center pt-4" style={{ color: 'var(--text-3)' }}>—</p>
@@ -516,7 +533,7 @@ export default function CalendarioPage() {
                             <BriefingBlock key={`b-${b.id}`} b={b} onClick={(e) => handleBriefingClick(b, e)} />
                           ))}
                           {dayReservas.slice(0, shownReservas).map(r => (
-                            <ReservaBlock key={r.id} r={r} onClick={(e) => handleBlockClick(r, e)} />
+                            <ReservaBlock key={r.id} r={r} day={day} onClick={(e) => handleBlockClick(r, e)} />
                           ))}
                           {hidden > 0 && (
                             <p className="text-xs pl-1" style={{ color: 'var(--text-2)' }}>

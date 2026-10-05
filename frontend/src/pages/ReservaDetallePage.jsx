@@ -4,7 +4,7 @@ import {
   ArrowLeft, Edit2, Trash2, Plus, UserPlus, MapPin, Users,
   Calendar, DollarSign, CheckCircle2, Clock,
   ChevronDown, ClipboardList, FileText, X, Download, FolderOpen,
-  Link as LinkIcon, User, Wallet,
+  Link as LinkIcon, User, Wallet, GripVertical, ListChecks, AlertTriangle,
 } from 'lucide-react';
 import { reservasApi } from '../api/reservas.api';
 import { pasajerosApi } from '../api/pasajeros.api';
@@ -14,8 +14,6 @@ import { notasApi } from '../api/notas.api';
 import { presupuestoApi } from '../api/presupuesto.api';
 import { tareasApi } from '../api/tareas.api';
 import { usuariosApi } from '../api/usuarios.api';
-import { reportesApi } from '../api/reportes.api';
-import { serviciosApi } from '../api/servicios.api';
 import { TareaForm } from './TareasPage';
 import { EstadoOpBadge, EstadoPagoBadge, PrioridadBadge, EstadoTareaBadge } from '../components/ui/Badge';
 import { PageLoader } from '../components/ui/Spinner';
@@ -24,10 +22,30 @@ import Alert from '../components/ui/Alert';
 import ReservaForm from '../components/reservas/ReservaForm';
 import PasajeroForm from '../components/reservas/PasajeroForm';
 import OrdenServicioPreviewModal from '../components/reservas/OrdenServicioPreviewModal';
+import InvoiceModal from '../components/reservas/InvoiceModal';
+import CierrePreviewModal from '../components/reservas/CierrePreviewModal';
+import ItinerarioReservaPanel from '../components/reservas/ItinerarioReservaPanel';
 import { fmtFecha, fmtFechaHora, fmtMoneda, localDateFromDateOnly } from '../utils/formatters';
 import { ESTADOS_OPERACION, ESTADOS_DETALLE_OPERACION, TIPOS_DOCUMENTO } from '../utils/constants';
 
-const TABS = ['Info', 'Pasajeros', 'Operaciones', 'Tareas', 'Briefings', 'Notas', 'Información interna', 'Presupuesto'];
+const TABS = ['Info', 'Pasajeros', 'Itinerario', 'Operaciones', 'Tareas', 'Briefings', 'Notas', 'Información interna', 'Presupuesto'];
+
+// ── Días del viaje: Día 1 = fecha_inicio de la reserva ──
+const isoDate = (v) => (v ? String(v).slice(0, 10) : '');
+const diffDias = (a, b) => Math.round((localDateFromDateOnly(isoDate(a)) - localDateFromDateOnly(isoDate(b))) / 86400000);
+const isoMasDias = (iso, n) => {
+  const d = localDateFromDateOnly(isoDate(iso));
+  d.setDate(d.getDate() + n);
+  return d.toLocaleDateString('en-CA');
+};
+const totalDiasReserva = (r) => (r?.fecha_inicio && r?.fecha_fin ? Math.max(1, diffDias(r.fecha_fin, r.fecha_inicio) + 1) : 0);
+// Día del viaje en el que cae una fecha (null si está fuera del rango de la reserva).
+const diaDelViaje = (r, fecha) => {
+  const total = totalDiasReserva(r);
+  if (!total || !fecha) return null;
+  const n = diffDias(fecha, r.fecha_inicio) + 1;
+  return n >= 1 && n <= total ? n : null;
+};
 
 const ESTADO_DETALLE_CLR = {
   PENDIENTE:    '#f59e0b',
@@ -194,43 +212,56 @@ function TareaOperacionForm({ inicial, onSave, onCancel }) {
     } : {}),
   });
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
-  const submit = (e) => {
-    e.preventDefault();
-    if (!f.titulo.trim()) return;
+  const [err, setErr] = useState('');
+  // OJO: NO es un <form>. Este editor se usa dentro del formulario de la
+  // operación (DetalleForm) y un <form> anidado no es HTML válido: el
+  // navegador lo descarta y el botón "+" terminaba enviando el formulario
+  // de la operación — la operación se guardaba SIN la tarea recién escrita.
+  const submit = () => {
+    if (f.titulo.trim().length < 2) return setErr('Escribe un título (mínimo 2 caracteres)');
+    setErr('');
     onSave({
-      titulo: f.titulo,
+      titulo: f.titulo.trim(),
       fecha: f.fecha || null,
       monto: f.monto === '' ? null : Number(f.monto),
       moneda: f.moneda || 'USD',
       persona_encargada: f.persona_encargada || null,
     });
   };
+  const onKeyDown = (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); submit(); }
+    if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
+  };
   return (
-    <form onSubmit={submit} className="flex flex-wrap items-end gap-2 p-2 rounded-xl" style={{ background: 'var(--card-2)' }}>
-      <input className="input-field text-xs flex-1 min-w-[160px]" placeholder={inicial ? 'Título' : 'Nueva tarea...'} value={f.titulo}
-        onChange={e => set('titulo', e.target.value)} autoFocus />
-      <input type="date" className="input-field text-xs" style={{ width: '9.5rem' }} value={f.fecha}
-        onChange={e => set('fecha', e.target.value)} />
-      <input type="number" step="0.01" className="input-field text-xs" style={{ width: '6.5rem' }} placeholder="Monto"
-        value={f.monto} onChange={e => set('monto', e.target.value)} />
-      <select className="input-field text-xs" style={{ width: '5.5rem' }} value={f.moneda}
-        onChange={e => set('moneda', e.target.value)}>
-        <option value="USD">USD $</option>
-        <option value="PEN">PEN S/</option>
-      </select>
-      <input className="input-field text-xs" style={{ width: '9rem' }} placeholder="Encargado"
-        value={f.persona_encargada} onChange={e => set('persona_encargada', e.target.value)} />
-      <button type="submit" className="p-2 rounded-lg cursor-pointer" style={{ background: 'var(--brand)', color: 'white' }}>
-        <Plus size={13} />
-      </button>
-      <button type="button" onClick={onCancel} className="p-2 rounded-lg cursor-pointer" style={{ color: 'var(--text-2)' }}>
-        <X size={13} />
-      </button>
-    </form>
+    <div className="p-2 rounded-xl space-y-1" style={{ background: 'var(--card-2)' }}>
+      <div className="flex flex-wrap items-end gap-2">
+        <input className="input-field text-xs flex-1 min-w-[160px]" placeholder={inicial ? 'Título' : 'Nueva tarea...'} value={f.titulo}
+          onChange={e => set('titulo', e.target.value)} onKeyDown={onKeyDown} autoFocus />
+        <input type="date" className="input-field text-xs" style={{ width: '9.5rem' }} value={f.fecha}
+          onChange={e => set('fecha', e.target.value)} onKeyDown={onKeyDown} />
+        <input type="number" step="0.01" className="input-field text-xs" style={{ width: '6.5rem' }} placeholder="Monto"
+          value={f.monto} onChange={e => set('monto', e.target.value)} onKeyDown={onKeyDown} />
+        <select className="input-field text-xs" style={{ width: '5.5rem' }} value={f.moneda}
+          onChange={e => set('moneda', e.target.value)}>
+          <option value="USD">USD $</option>
+          <option value="PEN">PEN S/</option>
+        </select>
+        <input className="input-field text-xs" style={{ width: '9rem' }} placeholder="Encargado"
+          value={f.persona_encargada} onChange={e => set('persona_encargada', e.target.value)} onKeyDown={onKeyDown} />
+        <button type="button" onClick={submit} title={inicial ? 'Guardar' : 'Agregar tarea'}
+          className="p-2 rounded-lg cursor-pointer" style={{ background: 'var(--brand)', color: 'white' }}>
+          {inicial ? <CheckCircle2 size={13} /> : <Plus size={13} />}
+        </button>
+        <button type="button" onClick={onCancel} title="Cancelar" className="p-2 rounded-lg cursor-pointer" style={{ color: 'var(--text-2)' }}>
+          <X size={13} />
+        </button>
+      </div>
+      {err && <p className="text-xs" style={{ color: '#ef4444' }}>{err}</p>}
+    </div>
   );
 }
 
-function OperacionChecklist({ detalleId }) {
+function OperacionChecklist({ detalleId, onCountsChange }) {
   const [tareas, setTareas] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
@@ -242,6 +273,12 @@ function OperacionChecklist({ detalleId }) {
   }, [detalleId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Mantiene al día el contador "Checklist x/y" de la fila de la operación.
+  useEffect(() => {
+    if (tareas) onCountsChange?.({ total: tareas.length, completadas: tareas.filter(t => t.completada).length });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tareas]);
 
   const toggle = async (t) => {
     setTareas(prev => prev.map(x => x.id === t.id ? { ...x, completada: !t.completada } : x));
@@ -255,13 +292,13 @@ function OperacionChecklist({ detalleId }) {
   };
 
   const add = async (data) => {
-    try { await proveedoresApi.createTareaOperacion(detalleId, data); setShowForm(false); load(); }
-    catch { setErr('No se pudo agregar la tarea'); }
+    try { await proveedoresApi.createTareaOperacion(detalleId, data); setShowForm(false); setErr(''); load(); }
+    catch (e) { setErr(e?.error || 'No se pudo agregar la tarea'); }
   };
 
   const guardarEdicion = async (data) => {
-    try { await proveedoresApi.updateTareaOperacion(editandoId, data); setEditandoId(null); load(); }
-    catch { setErr('No se pudo actualizar la tarea'); }
+    try { await proveedoresApi.updateTareaOperacion(editandoId, data); setEditandoId(null); setErr(''); load(); }
+    catch (e) { setErr(e?.error || 'No se pudo actualizar la tarea'); }
   };
 
   if (tareas === null) return <p className="text-xs px-2 py-1" style={{ color: 'var(--text-3)' }}>Cargando checklist...</p>;
@@ -343,14 +380,25 @@ function InformacionInternaPanel({ valorInicial, onSave }) {
 }
 
 /* ── Operation row (with edit/delete) ─────────────────────────── */
-function OperacionRow({ d, onEdit, onDelete }) {
+function OperacionRow({ d, onEdit, onDelete, totalDias, diaActual, onMover, onDragStart, onDragEnd, dragging }) {
   const clr = ESTADO_DETALLE_CLR[d.estado] || '#8892aa';
   const [open, setOpen] = useState(false);
+  const [counts, setCounts] = useState({ total: d.tareas_total ?? 0, completadas: d.tareas_completadas ?? 0 });
+  useEffect(() => {
+    setCounts({ total: d.tareas_total ?? 0, completadas: d.tareas_completadas ?? 0 });
+  }, [d.tareas_total, d.tareas_completadas]);
+  const checklistOk = counts.total > 0 && counts.completadas === counts.total;
   return (
     <div className="py-3 px-4 rounded-2xl relative overflow-hidden"
-      style={{ background: 'var(--card)', boxShadow: 'var(--shadow-sm)' }}>
+      draggable={!!onDragStart}
+      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(d.id)); onDragStart?.(d); }}
+      onDragEnd={() => onDragEnd?.()}
+      style={{ background: 'var(--card)', boxShadow: 'var(--shadow-sm)', opacity: dragging ? 0.5 : 1 }}>
       <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl" style={{ background: clr }} />
       <div className="flex items-start gap-3">
+        {onDragStart && (
+          <GripVertical size={15} className="flex-shrink-0 mt-0.5 cursor-grab" style={{ color: 'var(--text-3)' }} />
+        )}
         <div className="pl-2 flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="font-semibold text-sm" style={{ color: 'var(--text)' }}>
@@ -410,14 +458,27 @@ function OperacionRow({ d, onEdit, onDelete }) {
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
+          {onMover && totalDias > 0 && (
+            <select className="input-field text-xs py-1" style={{ width: '6.6rem', paddingLeft: '0.5rem', paddingRight: '1.5rem' }} title="Mover a otro día del viaje"
+              value={diaActual ?? ''} onChange={e => onMover(d, Number(e.target.value))}>
+              {diaActual == null && <option value="">Fuera</option>}
+              {Array.from({ length: totalDias }, (_, i) => i + 1).map(n => <option key={n} value={n}>Día {n}</option>)}
+            </select>
+          )}
           <div className="text-right">
             <p className="font-bold text-sm" style={{ color: 'var(--text)' }}>{fmtMoneda(d.costo_total_usd, d.moneda)}</p>
             <p className="text-xs" style={{ color: 'var(--text-3)' }}>x{d.cantidad}</p>
           </div>
-          <button onClick={() => setOpen(o => !o)} className="p-1.5 rounded-lg cursor-pointer hover:opacity-70"
-            style={{ color: 'var(--text-2)' }} title="Checklist de tareas">
-            <ChevronDown size={14} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+          <button onClick={() => setOpen(o => !o)}
+            className="flex items-center gap-1 px-2 py-1 rounded-lg cursor-pointer hover:opacity-80 text-xs font-semibold"
+            style={checklistOk
+              ? { background: 'rgba(16,185,129,0.13)', color: '#059669' }
+              : { background: 'var(--card-2)', color: counts.total ? 'var(--text-2)' : 'var(--text-3)' }}
+            title="Ver / editar el checklist de tareas">
+            <ListChecks size={13} />
+            {counts.total ? `${counts.completadas}/${counts.total}` : 'Checklist'}
+            <ChevronDown size={12} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
           </button>
           <button onClick={() => onEdit(d)} className="p-1.5 rounded-lg cursor-pointer hover:opacity-70"
             style={{ color: 'var(--text-2)' }}>
@@ -429,7 +490,7 @@ function OperacionRow({ d, onEdit, onDelete }) {
           </button>
         </div>
       </div>
-      {open && <div className="pl-2"><OperacionChecklist detalleId={d.id} /></div>}
+      {open && <div className="pl-2"><OperacionChecklist detalleId={d.id} onCountsChange={setCounts} /></div>}
     </div>
   );
 }
@@ -473,7 +534,7 @@ const DETALLE_EMPTY = {
   tipo_documento: '', serie_documento: '', numero_documento: '', enlace_drive: '',
 };
 
-function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
+function DetalleForm({ reservaId, reserva, proveedores, inicial, onSave, onCancel }) {
   const [f, setF]     = useState({
     ...DETALLE_EMPTY,
     ...inicial,
@@ -578,6 +639,27 @@ function DetalleForm({ reservaId, proveedores, inicial, onSave, onCancel }) {
           </select>
         </div>
       )}
+      {totalDiasReserva(reserva) > 0 && (() => {
+        const total = totalDiasReserva(reserva);
+        const dia = diaDelViaje(reserva, f.fecha_inicio);
+        // Elegir el día fija la fecha de inicio (y corre la fecha fin lo mismo).
+        const elegirDia = (n) => setF(p => {
+          const nueva = isoMasDias(reserva.fecha_inicio, n - 1);
+          const delta = p.fecha_inicio ? diffDias(nueva, p.fecha_inicio) : 0;
+          return { ...p, fecha_inicio: nueva, fecha_fin: p.fecha_fin && p.fecha_inicio ? isoMasDias(p.fecha_fin, delta) : p.fecha_fin };
+        });
+        return (
+          <div>
+            <label className="label">Día del viaje <span style={{ color: '#ef4444' }}>*</span></label>
+            <select className="input-field" value={dia ?? ''} onChange={e => e.target.value && elegirDia(Number(e.target.value))}>
+              {dia == null && <option value="">{f.fecha_inicio ? '— Fuera del rango de la reserva —' : '— Selecciona el día —'}</option>}
+              {Array.from({ length: total }, (_, i) => i + 1).map(n => (
+                <option key={n} value={n}>Día {n} — {fmtFecha(isoMasDias(reserva.fecha_inicio, n - 1))}</option>
+              ))}
+            </select>
+          </div>
+        );
+      })()}
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label">Fecha inicio <span style={{ color: '#ef4444' }}>*</span></label>
@@ -1042,6 +1124,13 @@ export default function ReservaDetallePage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Recarga la reserva sin mostrar el loader de página completa (así no se
+  // cierran los checklists abiertos ni se pierde la posición en la lista).
+  const refresh = useCallback(async () => {
+    try { const r = await reservasApi.getById(id); setReserva(r.data); }
+    catch { setError('No se pudo actualizar la reserva'); }
+  }, [id]);
+
   useEffect(() => {
     proveedoresApi.getAll({}).then(r => setProveedores(r.data || [])).catch(() => {});
     usuariosApi.getAll().then(r => setUsuarios(r.data || [])).catch(() => {});
@@ -1136,14 +1225,39 @@ export default function ReservaDetallePage() {
     }
     setDetalleModal(false);
     setDetalleEdit(null);
-    load();
+    refresh();
   };
 
   const handleDeleteDetalle = async (detalleId) => {
     if (!confirm('¿Eliminar esta operación?')) return;
     await proveedoresApi.deleteDetalle(detalleId);
     setSuccess('Operación eliminada');
-    load();
+    refresh();
+  };
+
+  // Mueve una operación a otro día del viaje: cambia su fecha de inicio a la
+  // de ese día y corre la fecha fin la misma cantidad de días.
+  const [dragOp, setDragOp]   = useState(null);
+  const [dropDia, setDropDia] = useState(null);
+  const handleMoverOperacion = async (d, dia) => {
+    const nueva = isoMasDias(reserva.fecha_inicio, dia - 1);
+    if (isoDate(d.fecha_inicio) === nueva) return;
+    const delta = diffDias(nueva, d.fecha_inicio);
+    try {
+      await proveedoresApi.updateDetalle(d.id, {
+        fecha_inicio: nueva,
+        ...(d.fecha_fin ? { fecha_fin: isoMasDias(d.fecha_fin, delta) } : {}),
+      });
+      setSuccess(`Operación movida al Día ${dia}`);
+      refresh();
+    } catch (e) {
+      setError(e?.error || 'No se pudo mover la operación');
+    }
+  };
+
+  const abrirNuevaOperacion = (dia = 1) => {
+    setDetalleEdit({ fecha_inicio: isoMasDias(reserva.fecha_inicio, dia - 1) });
+    setDetalleModal(true);
   };
 
   // Briefings handlers
@@ -1172,57 +1286,21 @@ export default function ReservaDetallePage() {
   const [ordenPreviewOpen, setOrdenPreviewOpen] = useState(false);
   const [ordenItinerarios, setOrdenItinerarios] = useState([]);
 
+  // La orden de servicio usa el itinerario de la reserva (el personalizado si
+  // existe, si no el del paquete — ver pestaña "Itinerario").
   const handleGenerarOrdenServicio = async () => {
+    let itinerarios = [];
     try {
-      let itinerarios = [];
-      if (reserva.servicio_id) {
-        try {
-          const r = await serviciosApi.getById(reserva.servicio_id);
-          itinerarios = r.data?.itinerarios || [];
-        } catch { /* si no se puede cargar el itinerario, se genera sin esa sección */ }
-      }
-      setOrdenItinerarios(itinerarios);
-      setOrdenPreviewOpen(true);
-    } catch {
-      setError('No se pudo generar la orden de salida');
-    }
+      const r = await reservasApi.getItinerario(reserva.id);
+      itinerarios = r.data?.dias || [];
+    } catch { /* si no se puede cargar el itinerario, se genera sin esa sección */ }
+    setOrdenItinerarios(itinerarios);
+    setOrdenPreviewOpen(true);
   };
 
-  const handleGenerarCierre = async () => {
-    try {
-      const blob = await reportesApi.generarCierreReserva(reserva.id);
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = `Cierre-${reserva.codigo_reserva}.xlsx`;
-      document.body.appendChild(a); a.click(); a.remove();
-      window.URL.revokeObjectURL(url);
-    } catch {
-      setError('No se pudo generar el cierre de file');
-    }
-  };
-
-  const handleGenerarInvoice = async () => {
-    try {
-      const lineItems = [
-        {
-          qty: reserva.n_pasajeros || 1,
-          description: reserva.servicio_nombre || reserva.nombre_servicio_snap || 'Servicio turístico',
-          unit_price: Number(reserva.precio_usd_por_pax),
-        },
-        ...(reserva.servicios_adicionales || []).map(e => ({
-          qty: e.cantidad, description: e.nombre, unit_price: Number(e.precio_unitario_usd),
-        })),
-      ];
-      const blob = await reportesApi.generarInvoice(reserva.id, { lineItems });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = `Invoice-${reserva.codigo_reserva}.xlsx`;
-      document.body.appendChild(a); a.click(); a.remove();
-      window.URL.revokeObjectURL(url);
-    } catch {
-      setError('No se pudo generar el invoice');
-    }
-  };
+  // Invoice y cierre de file abren una vista previa antes de descargar.
+  const [invoiceOpen, setInvoiceOpen] = useState(false);
+  const [cierreOpen, setCierreOpen]   = useState(false);
 
   const handleSaveTarea = async (data) => {
     await tareasApi.create(data);
@@ -1234,6 +1312,7 @@ export default function ReservaDetallePage() {
   if (loading) return <PageLoader />;
   if (!reserva) return <Alert type="error" message={error || 'Reserva no encontrada'} />;
 
+  const tabName = TABS[tab];
   const saldo = Number(reserva.saldo_usd);
   const totalesPresupuesto = presupuestoItems.reduce((acc, it) => {
     acc[it.moneda] = (acc[it.moneda] || 0) + Number(it.monto || 0);
@@ -1305,16 +1384,16 @@ export default function ReservaDetallePage() {
                 title="Genera el PDF de Orden de Salida con el formato real de Cusi Travel">
                 <FileText size={14} /> Orden de servicio
               </button>
-              <button onClick={handleGenerarInvoice}
+              <button onClick={() => setInvoiceOpen(true)}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold cursor-pointer transition-all"
                 style={{ background: 'rgba(255,255,255,0.18)', color: 'white' }}
-                title="Descarga el invoice en Excel, incluyendo los servicios adicionales">
+                title="Vista previa y edición del invoice antes de descargarlo en Excel">
                 <Download size={14} /> Invoice
               </button>
-              <button onClick={handleGenerarCierre}
+              <button onClick={() => setCierreOpen(true)}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold cursor-pointer transition-all"
                 style={{ background: 'rgba(255,255,255,0.18)', color: 'white' }}
-                title="Descarga el cierre de file de esta reserva en Excel">
+                title="Vista previa del cierre de file de esta reserva">
                 <FolderOpen size={14} /> Cierre de file
               </button>
               <button onClick={() => setEditModal(true)}
@@ -1411,8 +1490,8 @@ export default function ReservaDetallePage() {
         </div>
       </div>
 
-      {/* ── Tab 0: Info ───────────────────────────────── */}
-      {tab === 0 && (
+      {/* ── Pestaña: Info ── */}
+      {tabName === 'Info' && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {[
             ['Agencia', reserva.agencia_nombre],
@@ -1475,8 +1554,8 @@ export default function ReservaDetallePage() {
         </div>
       )}
 
-      {/* ── Tab 1: Pasajeros ──────────────────────────── */}
-      {tab === 1 && (
+      {/* ── Pestaña: Pasajeros ── */}
+      {tabName === 'Pasajeros' && (
         <div className="space-y-4">
           <div className="flex justify-end">
             <button onClick={() => { setPaxEdit(null); setPaxModal(true); }} className="btn-primary">
@@ -1498,33 +1577,95 @@ export default function ReservaDetallePage() {
         </div>
       )}
 
-      {/* ── Tab 2: Operaciones ────────────────────────── */}
-      {tab === 2 && (
-        <div className="space-y-4">
-          <div className="flex justify-end">
-            <button onClick={() => { setDetalleEdit(null); setDetalleModal(true); }} className="btn-primary">
-              <Plus size={16} /> Agregar operación
-            </button>
-          </div>
-          {!reserva.detalles?.length ? (
-            <div className="rounded-2xl p-10 text-center" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
-              <DollarSign size={32} className="mx-auto mb-2" style={{ color: 'var(--text-3)' }} />
-              <p className="text-sm" style={{ color: 'var(--text-2)' }}>Sin operaciones registradas</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {reserva.detalles.map(d => (
-                <OperacionRow key={d.id} d={d}
-                  onEdit={d => { setDetalleEdit(d); setDetalleModal(true); }}
-                  onDelete={handleDeleteDetalle} />
-              ))}
-            </div>
-          )}
-        </div>
+      {/* ── Pestaña: Itinerario (del paquete, personalizable por reserva) ── */}
+      {tabName === 'Itinerario' && (
+        <ItinerarioReservaPanel reserva={reserva} />
       )}
 
-      {/* ── Tab 3: Tareas ─────────────────────────────── */}
-      {tab === 3 && (
+      {/* ── Pestaña: Operaciones (agrupadas por día del viaje) ── */}
+      {tabName === 'Operaciones' && (() => {
+        const totalDias = totalDiasReserva(reserva);
+        const detalles  = reserva.detalles || [];
+        const fuera     = detalles.filter(d => diaDelViaje(reserva, d.fecha_inicio) == null);
+        const rowProps  = (d) => ({
+          d, totalDias,
+          diaActual: diaDelViaje(reserva, d.fecha_inicio),
+          onMover: handleMoverOperacion,
+          onDragStart: setDragOp,
+          onDragEnd: () => { setDragOp(null); setDropDia(null); },
+          dragging: dragOp?.id === d.id,
+          onEdit: (op) => { setDetalleEdit(op); setDetalleModal(true); },
+          onDelete: handleDeleteDetalle,
+        });
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+                Cada operación pertenece a un día del viaje. Arrástrala a otro día o usa su selector "Día" para moverla.
+              </p>
+              <button onClick={() => abrirNuevaOperacion(1)} className="btn-primary">
+                <Plus size={16} /> Agregar operación
+              </button>
+            </div>
+            {!detalles.length && (
+              <div className="rounded-2xl p-6 text-center" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+                <DollarSign size={28} className="mx-auto mb-2" style={{ color: 'var(--text-3)' }} />
+                <p className="text-sm" style={{ color: 'var(--text-2)' }}>Sin operaciones registradas</p>
+              </div>
+            )}
+            {Array.from({ length: totalDias }, (_, i) => i + 1).map(dia => {
+              const ops = detalles.filter(d => diaDelViaje(reserva, d.fecha_inicio) === dia);
+              const activo = dragOp && dropDia === dia;
+              return (
+                <div key={dia} className="rounded-2xl p-3 space-y-2 transition-colors"
+                  style={{
+                    background: activo ? 'var(--brand-bg)' : 'transparent',
+                    border: `1px ${activo ? 'dashed' : 'solid'} ${activo ? 'var(--brand)' : 'var(--border)'}`,
+                  }}
+                  onDragOver={e => { if (dragOp) { e.preventDefault(); setDropDia(dia); } }}
+                  onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setDropDia(null); }}
+                  onDrop={e => {
+                    e.preventDefault();
+                    if (dragOp) handleMoverOperacion(dragOp, dia);
+                    setDragOp(null); setDropDia(null);
+                  }}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black px-2.5 py-1 rounded-lg" style={{ background: 'var(--brand)', color: 'white' }}>
+                      Día {dia}
+                    </span>
+                    <span className="text-xs font-semibold" style={{ color: 'var(--text-2)' }}>
+                      {fmtFecha(isoMasDias(reserva.fecha_inicio, dia - 1))}
+                    </span>
+                    <span className="text-xs" style={{ color: 'var(--text-3)' }}>
+                      · {ops.length} operación{ops.length !== 1 ? 'es' : ''}
+                    </span>
+                    <button onClick={() => abrirNuevaOperacion(dia)}
+                      className="ml-auto text-xs font-semibold flex items-center gap-1 cursor-pointer" style={{ color: 'var(--brand)' }}>
+                      <Plus size={13} /> Agregar
+                    </button>
+                  </div>
+                  {ops.length === 0 ? (
+                    <p className="text-xs text-center py-3 rounded-xl" style={{ color: 'var(--text-3)', border: '1px dashed var(--border)' }}>
+                      Sin operaciones este día
+                    </p>
+                  ) : ops.map(d => <OperacionRow key={d.id} {...rowProps(d)} />)}
+                </div>
+              );
+            })}
+            {fuera.length > 0 && (
+              <div className="rounded-2xl p-3 space-y-2" style={{ border: '1px solid rgba(245,158,11,0.5)', background: 'rgba(245,158,11,0.06)' }}>
+                <p className="text-xs font-semibold flex items-center gap-1.5" style={{ color: '#b45309' }}>
+                  <AlertTriangle size={13} /> Fuera del rango de fechas de la reserva — asígnalas a un día
+                </p>
+                {fuera.map(d => <OperacionRow key={d.id} {...rowProps(d)} />)}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* ── Pestaña: Tareas ── */}
+      {tabName === 'Tareas' && (
         <div className="space-y-4">
           <div className="flex justify-end">
             <button onClick={() => setTareaModal(true)} className="btn-primary">
@@ -1547,8 +1688,8 @@ export default function ReservaDetallePage() {
         </div>
       )}
 
-      {/* ── Tab 4: Briefings ──────────────────────────── */}
-      {tab === 4 && (
+      {/* ── Pestaña: Briefings ── */}
+      {tabName === 'Briefings' && (
         <div className="space-y-4">
           <div className="flex justify-end">
             <button onClick={() => { setBriefingEdit(null); setBriefingModal(true); }} className="btn-primary">
@@ -1572,8 +1713,8 @@ export default function ReservaDetallePage() {
         </div>
       )}
 
-      {/* ── Tab 5: Notas ──────────────────────────────── */}
-      {tab === 5 && (
+      {/* ── Pestaña: Notas ── */}
+      {tabName === 'Notas' && (
         <div className="space-y-4">
           <div className="flex justify-end">
             <button onClick={() => { setNotaEdit(null); setNotaModal(true); }} className="btn-primary">
@@ -1597,16 +1738,16 @@ export default function ReservaDetallePage() {
         </div>
       )}
 
-      {/* ── Tab 6: Información interna ───────────────── */}
-      {tab === 6 && (
+      {/* ── Pestaña: Información interna ── */}
+      {tabName === 'Información interna' && (
         <InformacionInternaPanel
           valorInicial={reserva.notas_internas}
           onSave={handleSaveNotasInternas}
         />
       )}
 
-      {/* ── Tab 7: Presupuesto ────────────────────────── */}
-      {tab === 7 && (
+      {/* ── Pestaña: Presupuesto ── */}
+      {tabName === 'Presupuesto' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex flex-wrap gap-2">
@@ -1650,9 +1791,10 @@ export default function ReservaDetallePage() {
       </Modal>
 
       <Modal open={detalleModal} onClose={() => { setDetalleModal(false); setDetalleEdit(null); }}
-        title={detalleEdit ? 'Editar operación' : 'Agregar operación'} size="lg">
+        title={detalleEdit?.id ? 'Editar operación' : 'Agregar operación'} size="lg">
         <DetalleForm
           reservaId={Number(id)}
+          reserva={reserva}
           proveedores={proveedores}
           inicial={detalleEdit}
           onSave={handleSaveDetalle}
@@ -1708,6 +1850,9 @@ export default function ReservaDetallePage() {
         notas={notas}
         presupuestoItems={presupuestoItems}
       />
+
+      <InvoiceModal open={invoiceOpen} reserva={reserva} onClose={() => setInvoiceOpen(false)} />
+      <CierrePreviewModal open={cierreOpen} reserva={reserva} onClose={() => setCierreOpen(false)} />
     </div>
   );
 }

@@ -51,7 +51,7 @@ const getById = async (id) => {
     `SELECT po.*, p.nombre AS proveedor_nombre
      FROM cusi.plantilla_operaciones po
      LEFT JOIN cusi.proveedores p ON p.id = po.proveedor_id
-     WHERE po.servicio_id = $1 ORDER BY po.orden, po.id`,
+     WHERE po.servicio_id = $1 ORDER BY po.dia_numero, po.orden, po.id`,
     [id]
   );
   const { rows: plantillaTareas } = await query(
@@ -83,12 +83,13 @@ const syncPlantillas = async (client, servicioId, data) => {
       const op = data.plantilla_operaciones[i];
       const { rows } = await client.query(
         `INSERT INTO cusi.plantilla_operaciones
-           (servicio_id, tipo_servicio, proveedor_id, descripcion, cantidad, costo_unitario_usd, moneda, orden)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+           (servicio_id, tipo_servicio, proveedor_id, descripcion, cantidad, costo_unitario_usd, moneda, orden, dia_numero)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
          RETURNING id`,
         [
           servicioId, op.tipo_servicio, op.proveedor_id || null, op.descripcion || null,
           Number(op.cantidad) || 1, Number(op.costo_unitario_usd) || 0, op.moneda || 'USD', i + 1,
+          Number(op.dia_numero) || 1,
         ]
       );
       const plantillaOpId = rows[0].id;

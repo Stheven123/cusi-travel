@@ -100,6 +100,7 @@ export default function ServicioForm({ inicial, onSave, onSaved, onCancel }) {
           proveedor_id: op.proveedor_id ? Number(op.proveedor_id) : null,
           cantidad: Number(op.cantidad) || 1,
           costo_unitario_usd: Number(op.costo_unitario_usd) || 0,
+          dia_numero: Number(op.dia_numero) || 1,
           // Las tareas que vienen de la BD traen monto como texto (NUMERIC) y
           // fecha como timestamp — se normalizan para que pasen la validación.
           tareas: (op.tareas || []).map(t => ({
@@ -147,7 +148,8 @@ export default function ServicioForm({ inicial, onSave, onSaved, onCancel }) {
       </div>
 
       {tab === 1 && (
-        <PlantillaOperacionesForm operaciones={plantillaOperaciones} proveedores={proveedores} onChange={setPlantillaOperaciones} />
+        <PlantillaOperacionesForm operaciones={plantillaOperaciones} proveedores={proveedores}
+          duracionDias={form.duracion_dias} onChange={setPlantillaOperaciones} />
       )}
       {tab === 2 && (
         <CatalogoAdicionalesForm items={catalogoAdicionales} onChange={setCatalogoAdicionales} />

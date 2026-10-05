@@ -342,10 +342,21 @@ const getAllTareasOperacion = async (filters = {}) => {
   }
   if (filters.reserva_id) { conds.push(`d.reserva_id = $${idx++}`); values.push(Number(filters.reserva_id)); }
   if (filters.tipo_servicio) { conds.push(`d.tipo_servicio = $${idx++}`); values.push(filters.tipo_servicio); }
+  // Rango de fechas sobre la fecha de la tarea (si no tiene fecha propia,
+  // se usa la fecha de su operación para que no desaparezca del filtro).
+  if (filters.desde) { conds.push(`COALESCE(t.fecha, d.fecha_inicio) >= $${idx++}`); values.push(filters.desde); }
+  if (filters.hasta) { conds.push(`COALESCE(t.fecha, d.fecha_inicio) <= $${idx++}`); values.push(filters.hasta); }
+  if (filters.busqueda) {
+    conds.push(`(t.titulo ILIKE $${idx} OR r.codigo_reserva ILIKE $${idx} OR p.nombre ILIKE $${idx}
+                 OR t.persona_encargada ILIKE $${idx} OR r.agencia_nombre ILIKE $${idx} OR d.descripcion ILIKE $${idx})`);
+    values.push(`%${filters.busqueda}%`);
+    idx++;
+  }
 
   const { rows } = await query(
     `SELECT t.*,
             d.reserva_id, d.tipo_servicio, d.proveedor_id,
+            d.fecha_inicio AS operacion_fecha,
             p.nombre AS proveedor_nombre,
             r.codigo_reserva, r.agencia_nombre,
             TRIM(CONCAT(ug.nombre, ' ', ug.apellido)) AS guia_asignado_nombre
@@ -355,7 +366,7 @@ const getAllTareasOperacion = async (filters = {}) => {
      JOIN cusi.reservas r ON r.id = d.reserva_id
      LEFT JOIN cusi.usuarios ug ON ug.id = r.usuario_guia_id
      WHERE ${conds.join(' AND ')}
-     ORDER BY t.completada, t.fecha NULLS LAST, t.id DESC
+     ORDER BY t.completada, COALESCE(t.fecha, d.fecha_inicio) NULLS LAST, t.id DESC
      LIMIT 500`,
     values
   );

@@ -40,6 +40,29 @@ const reservaSchema = z.object({
     cantidad:            z.number().int().min(1).default(1),
     precio_unitario_usd: z.number().min(0).default(0),
   })).optional(),
+  // Pagos con fecha — si hay al menos uno, adelanto_usd = suma de montos.
+  pagos: z.array(z.object({
+    fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato YYYY-MM-DD'),
+    monto: z.number().positive(),
+    nota:  z.string().max(200).optional().or(z.literal('')).nullable(),
+  })).optional(),
+});
+
+const numOpt = z.number().optional().nullable();
+const itinerarioReservaSchema = z.object({
+  dias: z.array(z.object({
+    titulo:           z.string().min(1).max(200),
+    descripcion:      z.string().optional().nullable(),
+    altitud_max_msnm: z.number().int().min(0).max(9000).optional().nullable(),
+    distancia_km:     numOpt,
+    horas_caminata:   z.number().min(0).max(24).optional().nullable(),
+    desayuno:         z.boolean().default(false),
+    almuerzo:         z.boolean().default(false),
+    cena:             z.boolean().default(false),
+    box_lunch:        z.boolean().default(false),
+    alojamiento:      z.string().max(200).optional().nullable(),
+    notas_operativas: z.string().optional().nullable(),
+  })),
 });
 
 const getAll = async (req, res, next) => {
@@ -96,4 +119,29 @@ const remove = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-module.exports = { getAll, getCalendario, getById, create, update, cambiarEstado, remove };
+const getItinerario = async (req, res, next) => {
+  try {
+    const data = await service.getItinerario(Number(req.params.id));
+    res.json({ ok: true, data });
+  } catch (err) { next(err); }
+};
+
+const saveItinerario = async (req, res, next) => {
+  try {
+    const { dias } = itinerarioReservaSchema.parse(req.body);
+    const data = await service.saveItinerario(Number(req.params.id), dias);
+    res.json({ ok: true, data });
+  } catch (err) { next(err); }
+};
+
+const resetItinerario = async (req, res, next) => {
+  try {
+    const data = await service.resetItinerario(Number(req.params.id));
+    res.json({ ok: true, data });
+  } catch (err) { next(err); }
+};
+
+module.exports = {
+  getAll, getCalendario, getById, create, update, cambiarEstado, remove,
+  getItinerario, saveItinerario, resetItinerario,
+};

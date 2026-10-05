@@ -105,7 +105,7 @@ const datosTrekTexto = (it) => {
 };
 
 // ─── Construye las filas etiqueta/valor del bloque superior ────────────
-const buildHeaderRows = (reserva, itinerarios) => {
+const buildHeaderRows = (reserva, itinerarios, briefings = []) => {
   const rows = [];
   const detalles = reserva.detalles || [];
   const pax = reserva.pasajeros || [];
@@ -119,6 +119,10 @@ const buildHeaderRows = (reserva, itinerarios) => {
     rows.push(['MODALIDAD', reserva.modalidad_servicio === 'PRIVADO' ? 'Privado' : 'Compartido']);
   }
   rows.push(['DATE', fmtRangoFechas(reserva.fecha_inicio, reserva.fecha_fin)]);
+
+  // Briefing justo después de la fecha (todos los briefings de la reserva).
+  const briefingsLineas = buildBriefings(briefings);
+  rows.push(['BRIEFING', briefingsLineas.length ? briefingsLineas.join('\n') : '—']);
 
   const hoteles = byTipo('HOTEL');
   hoteles.forEach((d, i) => {
@@ -263,7 +267,7 @@ export const construirOrdenServicioDoc = async ({
   y += 12;
 
   // ── Bloque de datos clave (etiqueta / valor) ──
-  const headerRows = buildHeaderRows(reserva, itinerarios);
+  const headerRows = buildHeaderRows(reserva, itinerarios, briefings);
   autoTable(doc, {
     startY: y,
     margin: { left: ML, right: MR },
@@ -346,7 +350,8 @@ export const construirOrdenServicioDoc = async ({
       columnStyles,
       head: [head],
       body: itsOrdenados.map(it => {
-        const actividad = [it.titulo, it.descripcion].filter(x => x?.trim()).join('\n') || '—';
+        // Helvetica de jsPDF no tiene la flecha "→" (sale como letras espaciadas).
+        const actividad = ([it.titulo, it.descripcion].filter(x => x?.trim()).join('\n') || '—').replace(/→/g, '->');
         const row = [
           it.dia_numero,
           addDaysISO(reserva.fecha_inicio, it.dia_numero - 1) || '—',
@@ -362,20 +367,7 @@ export const construirOrdenServicioDoc = async ({
     y = doc.lastAutoTable.finalY + 5;
   }
 
-  // ── Briefings (todos, no solo el "más cercano") ──
-  const briefingsLineas = buildBriefings(briefings);
-  if (briefingsLineas.length) {
-    y = ensureSpace(doc, y, 16);
-    y = sectionHeader(doc, 'BRIEFINGS', y);
-    autoTable(doc, {
-      startY: y,
-      margin: { left: ML, right: MR },
-      theme: 'grid',
-      styles: { font: 'helvetica', fontSize: 8, cellPadding: 2, lineColor: BORDER, lineWidth: 0.2, textColor: TXTDK },
-      body: briefingsLineas.map(n => [n]),
-    });
-    y = doc.lastAutoTable.finalY + 5;
-  }
+  // (Los briefings van en el bloque superior, en la fila "BRIEFING" después de la fecha.)
 
   // ── Notas ──
   const notasLineas = notasOverride ?? buildNotas(reserva, agencia, notasReserva, paraGuia);
